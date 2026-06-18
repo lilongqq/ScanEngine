@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import logging
+import time
+import traceback
+import uuid
+from threading import Event
+from functools import partial
+from common.redsync import RedEvent
+from common import classmap
+from common.functools import get_class
+from crawling.filters import FilterChain
+from crawling.speeds import SpeedChain, ZeroChain
+from crawling.ignore import Ignore
+from crawling.checklist import Checklist
+from crawling.diff import Differator
+from .interface import Strategy
+from common.globals import Variables, Redis
+from exceptions import FilterError
+from dataprocessing import ProcessManager
+from exstd.concurrent.futures import BoundaryThreadPoolExecutor
+from mq import Producer, Consumer
+
+
+class Discovery(Strategy):
+    def __init__(
+        self,
+        identity,
+        partitions,
+        rules_id,
+        cls,
+        iterator,
+        filters,
+        action,
+        speeds=[],
+        checklist=True,
+        rule_list=[]
+    ):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.variables = Variables()
+        self.identity = identity
+        self.partitions = partitions
+        self.rules_id = rules_id
+        self.bool = True
+        self.stats_name = ':'.join(
+            [
+                self.variables.redis['stats'],
+                self.identity
+            ]
+        )
+        self.redis = Redis(**self.variables.redis['auth'])
+        task_id_bytes = self.redis.hget(self.stats_name, 'task_id')
+        self.task_id = str(task_id_bytes, encoding='utf-8') if task_id_bytes else uuid.uuid4().hex
+        self.iterator = get_class(classmap.iterator.get(cls))(**iterator)
+        self.ignore = Ignore(self.identity)
+        self.differator = Differator(self.identity, self.rules_id)
+        self.event = Event()
+        self.pause_event = RedEvent(self.identity)
+        self.zero_chain = ZeroChain(
+            self.event,
+            filter(lambda item: not item['speed'], speeds)
+        )
+        self.speed_chain = SpeedChain(
+            self.event,
+            filter(lambda item: item['speed'], speeds)
+        )
+        self.producer = Producer(
+            partitions=self.partitions,
+            client_id=identity,
+            **self.variables.kafka['producer']
+        )
+
+        self.consumer = Consumer(
+            topic=self.variables.kafka['attributes'],
+            partition=self.variables.kafka['partition'],
+            ** self.variables.kafka['consumer']
+        )
+
+        if cls in self.variables.differator['post']:
+            self.filter_chain = FilterChain(filters)
+            self.filter_chain.add(self.ignore)
+            self.filter_chain.add(self.differator)
+        else:
+            self.filter_chain = FilterChain({})
+        class_name = action.pop('cls')
+        self.action = get_class(class_name)(
+            self.identity,
+            self.rules_id,
+            **action
+        )
+        if checklist:
+            self.action = Checklist(
+                self.identity,
+                self.rules_id,
+                self.task_id,
+                self.action,
+                rule_list=rule_list
+            )
+        self.target = ProcessManager(
+            target=self.action,
+            speed_chain=self.speed_chain,
+            filter_chain=self.filter_chain
+        )
+        self.pool = BoundaryThreadPoolExecutor(**self.variables.executor)
+
+    def start(self):
+        self.run()
+        count, db_records, size = self.redis.hmget(
+            self.stats_name,
+            ['count', 'db_records', 'size']
+        )
+        self.logger.info(
+            '''
+            identity: {identity}
+            rules_id: {rules_id}
+            count: {count}
+            db_records: {db_records}
+            size: {size}
+            '''.format(
+                identity=self.identity,
+                rules_id=self.rules_id,
+                count=int(count) if count else 0,
+                db_records=int(db_records) if db_records else 0,
+                size=int(size) if size else 0
+            )
+        )
+        subtasks = self.redis.hincrby(self.stats_name, 'subtasks', -1)
+        if not subtasks:
+            self.redis.hset(self.stats_name, 'status', 'stop')
+
+    def run(self):
+        while self.bool:
+            try:
+                self.pause_event.wait(180)
+                message = next(self.consumer)
+                node = message.value
+                if node['type'] == 'stop_iteration':
+                    raise StopIteration
+                node = self.iterator.wrapper_node(node)
+                stream = partial(self.iterator.get_file, node)
+                self.zero_chain()
+                f = self.pool.submit(self.target, node, stream)
+                f.add_done_callback(partial(self.logging_error, node))
+            except StopIteration:
+                self.logger.info('StopIteration')
+                self.pool.shutdown()
+                self.consumer.commit()
+                self.logger.info('shutdown')
+                break
+            except Exception:
+                self.logger.info(traceback.format_exc())
+        else:
+            self.consumer.seek_to_last()
+            while True:
+                try:
+                    message = next(self.consumer)
+                    node = message.value
+                    if node['type'] == 'stop_iteration':
+                        raise StopIteration
+                    else:
+                        self.logger.info('ignore message: {}'.format(node))
+                        self.logger.info('offset: {}'.format(message.offset))
+                        continue
+                except StopIteration:
+                    self.logger.info('StopIteration')
+                    self.pool.shutdown()
+                    self.consumer.commit()
+                    self.logger.info('shutdown')
+                    break
+                except Exception:
+                    self.logger.info(traceback.format_exc())
+
+    def logging_error(self, node, future):
+        exception = future.exception()
+        pipeline = self.redis.pipeline()
+        if exception:
+            pipeline.hincrby(self.stats_name, 'count')
+            if 'count' in node:
+                pipeline.hincrby(
+                    self.stats_name,
+                    'db_records',
+                    amount=node['count']
+                )
+            node['jobId'] = [self.identity]
+            node['se_time'] = int(time.time()*1000)
+            node['from'] = 'se'
+            if isinstance(exception, FilterError):
+                node['status'] = exception.status
+                self.logger.error(exception)
+                self.producer.send(
+                    topic=self.variables.kafka['filter'],
+                    value=node.data
+                )
+            else:
+                node['status'] = '540519'
+                self.logger.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
+                self.producer.send(
+                    topic=self.variables.kafka['unprocessed'],
+                    value=node.data
+                )
+            if 'size' in node:
+                pipeline.hincrby(
+                    self.stats_name,
+                    'size',
+                    amount=node['size']
+                )
+            pipeline.execute()
+            return
+        result = future.result()
+        if result:
+            pipeline.hincrby(self.stats_name, 'count')
+            if 'count' in node:
+                pipeline.hincrby(
+                    self.stats_name,
+                    'db_records',
+                    amount=node['count']
+                )
+            if 'size' in node:
+                pipeline.hincrby(
+                    self.stats_name,
+                    'size',
+                    amount=node['size']
+                )
+            pipeline.execute()
+
+    def stop(self):
+        self.bool = False
+        self.event.set()
+        self.pause_event.set()
+
+    def __bool__(self):
+        return self.bool

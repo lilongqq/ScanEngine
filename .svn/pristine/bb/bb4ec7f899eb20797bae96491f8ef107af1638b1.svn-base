@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+protocol = {
+    'LOTUS': 'crawling.files.lotus.lotuscrawler.LotusOne',
+    'EWS': 'crawling.files.ewscrawler.MultiEWS',
+    'FTP': 'crawling.files.ftpcrawler.FTPOne',
+    'HDFS': 'crawling.files.hdfscrawler.HDFSOne',
+    'IMAP': 'crawling.files.imapcrawler.MultiIMAP',
+    'NFS': 'crawling.files.nfscrawler.NFSOne',
+    'OSS': 'crawling.files.osscrawler.factory',
+    'POP3': 'crawling.files.pop3crawler.MultiPOP3',
+    'SFTP': 'crawling.files.sftpcrawler.SFTPOne',
+    'SHAREPOINT': 'crawling.files.sharepointcrawler.SharePointOne',
+    'SMB': 'crawling.files.smbcrawler.SMBOne',
+    'WEBDAV': 'crawling.files.webdavcrawler.WebDavOne',
+    'NUT': 'crawling.files.webdavcrawler.NutCloud',
+    'HBASEREST': 'crawling.database.hbaserestcrawler.HBaseRest',
+    'REDIS': 'crawling.database.rediscrawler.RedisOne',
+    'MONGO': 'crawling.database.mongocrawler.MongoOne',
+    'DBProxy': 'crawling.database.dbproxy.dbpcrawler.DBProxy',
+    'GRIDFS': 'crawling.database.mongocrawler.GRIDFS',
+    'IGUO': 'crawling.files.iguocrawler.Iguo',
+    'UDS': 'crawling.files.uds.udscrawler.UDS',
+    'EYOU': 'crawling.files.eyoucrawler.EYou',
+    'UDSREST': 'crawling.files.udsrestcrawler.UDSREST'
+
+}
+
+iterator = {
+    'LOTUS': 'crawling.files.lotus.lotuscrawler.LotusIterator',
+    'EWS': 'crawling.files.ewscrawler.MultiEWSIterator',
+    'FTP': 'crawling.files.ftpcrawler.FTPIterator',
+    'HDFS': 'crawling.files.hdfscrawler.HDFSIterator',
+    'HTTPGET': 'crawling.files.httpcrawler.HttpGetIterator',
+    'IMAP': 'crawling.files.imapcrawler.MultiIMAPIterator',
+    'NFS': 'crawling.files.nfscrawler.NFSIterator',
+    'OSS': 'crawling.files.osscrawler.OSSIterator',
+    'POP3': 'crawling.files.pop3crawler.MultiPOP3Iterator',
+    'SFTP': 'crawling.geos.sftpcrawler.SFTPIterator',
+    'SMB': 'crawling.geos.smbcrawler.SMBIterator',
+    'SHAREPOINT': 'crawling.files.sharepointcrawler.SharePointIterator',
+    'WEBDAV': 'crawling.files.webdavcrawler.WebDavIterator',
+    'NUT': 'crawling.files.webdavcrawler.NutIterator',
+    'HBASEREST': 'crawling.database.hbaserestcrawler.HBaseIterator',
+    'REDIS': 'crawling.database.rediscrawler.RedisIterator',
+    'MONGO': 'crawling.database.mongocrawler.MongoIterator',
+    'DBProxy': 'crawling.database.dbproxy.dbpcrawler.DBProxyIterator',
+    'DBProxyAppend': 'crawling.database.dbproxy.dbpcrawler.DBProxyAppendIterator',
+    'SHANXIOA': 'crawling.files.oa.ShanxiOAIterator',
+    'GRIDFS': 'crawling.database.mongocrawler.GRIDFSIterator',
+    'IGUO': 'crawling.files.iguocrawler.IguoIterator',
+    'UDS': 'crawling.files.uds.udscrawler.UDSIterator',
+    'EYOU': 'crawling.files.eyoucrawler.EYouIterator',
+    'UDSREST': 'crawling.files.udsrestcrawler.UDSRESTIterator'
+}

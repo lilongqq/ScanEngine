@@ -1,0 +1,42 @@
+# 这是高级追加的属性，包含了文件的属性，和数据库属性（主键溯源列和追加列信息）
+jobId: 0e5a5064-e95d-40a2-b064-8842c0089f87-ftps #策略id
+rulesId: 0e5a5064-e95d-40a2-b064-8842c0089f87 #规则id， 当规则变化此id也变换
+taskId: 425a5064e95d40a2b0648842c0089f97 #包括每次任务运行生成
+uri: 425a5064e95d40a2b0648842c0089f97/C$/追加样本_文档格式/10国务院.et #文件minio存储的位置
+columns: #列信息，分别为主键列，和扫描的路径列， 顺序和rows对应中每一行的值对应
+- classification: STRING
+  isAutoIncrement: 'NO'
+  isNullable: 'YES'
+  isPath: 'NO'
+  layer: column
+  name: ID
+  remark: ''
+  type: 12
+  typeName: VARCHAR
+  userPk: 'YES'
+- classification: STRING
+  isAutoIncrement: 'NO'
+  isNullable: 'YES'
+  isPath: 'YES'
+  is_append: true
+  layer: column
+  name: PATH
+  remark: ''
+  type: 12
+  typeName: VARCHAR
+create_time: 1595513881.517964
+format_path: C$/追加样本_文档格式/10国务院.et #这个是路径列的经过相对路径等操作后的值
+isReadOnly: false
+last_access_time: 1595817795.176571
+last_attr_change_time: 1597131471.525709
+last_write_time: 1592186602.509751
+name: 10国务院.et
+path: C$/追加样本_文档格式/10国务院.et
+rows:
+- - A001
+  - C:\追加样本_文档格式\10国务院.et
+schemaName: bzcp
+size: 27136
+tableName: 追加_windows绝对路径
+type: file #数据库高级追加独立视为追加协议的文件系统
+se_time: 1662183868628

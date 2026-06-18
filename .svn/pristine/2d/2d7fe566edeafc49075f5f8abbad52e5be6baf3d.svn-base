@@ -1,0 +1,463 @@
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import io
+import re
+import logging
+import os.path
+import socket
+import hashlib
+from . import must_combined_suffixes, combined_suffixes_map
+from tempfile import SpooledTemporaryFile
+from selectors import DefaultSelector, EVENT_READ
+from collections.abc import MutableMapping
+from collections import UserDict, ChainMap
+from functools import singledispatchmethod, partial
+from smb.SMBConnection import SMBConnection
+from nmb.NetBIOS import NetBIOS
+from smb.base import NotConnectedError
+from crawling.interface import Iterator, Client
+from common.conntool import client_pool, weak_cache, thread_local
+from common.functools import gen_key, boolean
+
+
+class SMBDict(UserDict):
+
+    def __getitem__(self, item):
+        if item == 'timestamp':
+            return self.data['last_write_time']
+        elif item == 'diff':
+            return gen_key(
+                path=self.data.get('path'),
+                last_write_time=self.data.get('last_write_time')
+            )
+        else:
+            return self.data[item]
+
+    def __contains__(self, item):
+        if item == 'timestamp':
+            return 'last_write_time' in self.data
+        elif item == 'diff':
+            return {'last_write_time', 'path'}.issubset(self.data)
+        else:
+            return item in self.data
+
+
+class SMB(Client):
+
+    def __init__(self,
+                 username,
+                 password,
+                 host,
+                 port=445,
+                 remote_name='',
+                 domain='',
+                 use_ntlm_v2=True,
+                 is_direct_tcp=True,
+                 **kwargs):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.username = username
+        self.password = password
+        self.ip = host
+        self.port = int(port)
+        self.my_name = socket.gethostname()
+        if remote_name:
+            self.remote_name = remote_name
+        else:
+            netbios = NetBIOS()
+            names = netbios.queryIPForName(self.ip)
+            if names:
+                self.remote_name = names[0]
+            else:
+                self.remote_name = 'SMBServer'
+        self.domain = domain
+        self.use_ntlm_v2 = boolean(use_ntlm_v2)
+        self.is_direct_tcp = boolean(is_direct_tcp)
+        self.client = SMBConnection(
+            username=self.username,
+            password=self.password,
+            my_name=self.my_name,
+            remote_name=self.remote_name,
+            domain=self.domain,
+            use_ntlm_v2=self.use_ntlm_v2,
+            is_direct_tcp=self.is_direct_tcp
+        )
+        connected = self.client.connect(ip=self.ip, port=self.port)
+        if connected:
+            self.logger.info('connected is {}'.format(connected))
+        else:
+            raise NotConnectedError()
+        self.selector = DefaultSelector()
+        self.selector.register(self.client.sock, EVENT_READ)
+
+    @singledispatchmethod
+    def get_nodes(self, *args, **kwargs):
+        raise NotImplemented
+
+    @get_nodes.register(MutableMapping)
+    def _(self, node):
+        nodes = list()
+        if node and (
+                shared_path := node.get('path', node['name'])
+        ):
+            service_name, path = self.__service_name_and_path(shared_path)
+            self.logger.info('listPath')
+            self.logger.info(
+                'service_name: {}, path: {}'.format(service_name, path))
+            shared_files = self.client.listPath(
+                service_name=service_name, path=path)
+            for shared_file in shared_files:
+                if shared_file.isDirectory:
+                    if shared_file.filename in ['.', '..']:
+                        continue
+                    node = self.format_dir(shared_file)
+                else:
+                    node = self.format_file(shared_file)
+                node['path'] = os.path.join(shared_path, shared_file.filename)
+                nodes.append(node)
+        else:
+            self.logger.info('listShares')
+            shared_devices = self.client.listShares()
+            for shared_device in shared_devices:
+                if shared_device.isSpecial and not re.match(r'^[A-Z]\$$', shared_device.name):
+                    continue
+                node = self.format_dev(shared_device)
+                node['path'] = shared_device.name
+                nodes.append(node)
+        return nodes
+
+    @get_nodes.register(str)
+    def _(self, shared_path):
+        nodes = list()
+        shared_path = shared_path.lstrip('/')
+        if shared_path:
+            service_name, path = self.__service_name_and_path(shared_path)
+            if path == '/':
+                self.logger.info('listPath')
+                self.logger.info(
+                    'service_name: {}, path: {}'.format(service_name, path))
+                shared_files = self.client.listPath(
+                    service_name=service_name, path=path)
+                for shared_file in shared_files:
+                    if shared_file.isDirectory:
+                        if shared_file.filename in ['.', '..']:
+                            continue
+                        node = self.format_dir(shared_file)
+                    else:
+                        node = self.format_file(shared_file)
+                    node['path'] = os.path.join(
+                        shared_path, shared_file.filename)
+                    nodes.append(node)
+            else:
+                self.logger.info('getAttributes')
+                self.logger.info(
+                    'service_name: {}, path: {}'.format(service_name, path))
+                shared_file = self.client.getAttributes(
+                    service_name=service_name, path=path)
+                if shared_file.isDirectory:
+                    node = self.format_dir(shared_file)
+                else:
+                    node = self.format_file(shared_file)
+                node['path'] = shared_path
+                nodes.append(node)
+        else:
+            self.logger.info('listShares')
+            shared_devices = self.client.listShares()
+            for shared_device in shared_devices:
+                if shared_device.isSpecial and not re.match(r'^[A-Z]\$$', shared_device.name):
+                    continue
+                node = self.format_dev(shared_device)
+                node['path'] = shared_device.name
+                nodes.append(node)
+        return nodes
+
+    def get_file(self, node):
+        self.logger.info('node:')
+        self.logger.info(node)
+        if node and (
+                shared_path := node.get('path', node['name'])
+        ):
+            service_name, path = self.__service_name_and_path(shared_path)
+            self.logger.info('retrieveFile')
+            self.logger.info(
+                'service_name: {}, path: {}'.format(
+                    service_name,
+                    path
+                )
+            )
+            f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
+            self.client.retrieveFile(
+                service_name=service_name, path=path, file_obj=f)
+            f.seek(0)
+            return f
+        else:
+            raise ValueError('shared_path is None')
+
+    def delete_file(self, node):
+        self.logger.info('delete_file:')
+        self.logger.info(node)
+        if node and (
+                shared_path := node.get('path', node['name'])
+        ):
+            service_name, path = self.__service_name_and_path(shared_path)
+            self.logger.info('service_name:')
+            self.logger.info(service_name)
+            self.logger.info('path:')
+            self.logger.info(path)
+            self.client.deleteFiles(
+                service_name=service_name, path_file_pattern=path)
+        else:
+            raise ValueError('shared_path is None')
+
+    def __bool__(self):
+        if getattr(self, 'selector', False):
+            events = self.selector.select(timeout=0)
+            return not events
+        else:
+            return False
+
+    def __del__(self):
+        if getattr(self, 'client', False):
+            self.client.close()
+        if getattr(self, 'selector', False):
+            self.selector.close()
+
+    @staticmethod
+    def format_dev(shared_device):
+        node = dict()
+        node['type'] = 'dir'
+        node['isSpecial'] = shared_device.isSpecial
+        node['name'] = shared_device.name
+        node['comments'] = shared_device.comments
+        node['children'] = []
+        return node
+
+    @staticmethod
+    def format_dir(shared_file):
+        node = dict()
+        node['type'] = 'dir'
+        node['name'] = shared_file.filename
+        node['create_time'] = shared_file.create_time
+        node['isReadOnly'] = shared_file.isReadOnly
+        node['last_access_time'] = shared_file.last_access_time
+        node['last_attr_change_time'] = shared_file.last_attr_change_time
+        node['last_write_time'] = shared_file.last_write_time
+        node['children'] = []
+        return node
+
+    @staticmethod
+    def format_file(shared_file):
+        node = dict()
+        node['type'] = 'file'
+        node['name'] = shared_file.filename
+        node['size'] = shared_file.file_size
+        node['create_time'] = shared_file.create_time
+        node['isReadOnly'] = shared_file.isReadOnly
+        node['last_access_time'] = shared_file.last_access_time
+        node['last_attr_change_time'] = shared_file.last_attr_change_time
+        node['last_write_time'] = shared_file.last_write_time
+        return node
+
+    @staticmethod
+    def __service_name_and_path(path):
+        path_tuple = path.split('/', 1)
+        if len(path_tuple) == 2:
+            service_name, path = path_tuple
+        else:
+            service_name = path
+            path = '/'
+        return service_name, path
+
+
+@thread_local
+class SMBBatch(SMB):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+@weak_cache
+@client_pool(max_connections=3)
+class SMBOne(SMB):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class SMBIterator(Iterator):
+
+    def __init__(self, auth, resources={}):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.auth = auth
+        self.client = SMBBatch(**self.auth)
+        self.stack = list()
+        if resources:
+            self.stack.append(resources)
+        self.dir = dict()
+        self.node = SMBDict()
+        self.adf_files = list()
+        self.isolated_files = list()
+        self.subfiles = list()
+        self.subdirs = list()
+        self.combined_files = dict()
+        self.value_suffixes_map = ChainMap(*combined_suffixes_map.values())
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while True:
+            if self.isolated_files:
+                self.node = SMBDict(self.isolated_files.pop())
+                self.logger.debug(self.node)
+                return self.node, partial(self.get_file, self.node)
+            elif self.subfiles:
+                for node in self.subfiles:
+                    if node['name'].lower() == 'tileset.json':
+                        for key, value in self.combined_files.items():
+                            if value['suffixes'][0] == '.b3dm':
+                                value['size'] += node['size']
+                                value['suffixes'].append(node['suffix'])
+                                value['children'].append(node)
+                                self.logger.info(
+                                    'b3dm tileset.json combined_files: {}'.format(
+                                        key
+                                    )
+                                )
+                                break
+                    else:
+                        for key, value in self.combined_files.items():
+                            if key in node['name'].lower():
+                                if node['name'].lower().removeprefix(key).isascii():
+                                    value['size'] += node['size']
+                                    value['suffixes'].append(node['suffix'])
+                                    value['children'].append(node)
+                                    break
+                self.subfiles.clear()
+            elif self.combined_files:
+                key, value = self.combined_files.popitem()
+                self.logger.info('combined_files: {}'.format(key))
+                if set(value['suffixes']).issuperset(must_combined_suffixes[value['suffixes'][0]]):
+                    self.node = SMBDict(value)
+                    self.logger.debug(self.node)
+                    return self.node, partial(self.get_entirety, self.node)
+                else:
+                    self.logger.info(
+                        'check integrity failed ignore combined_files: {}'.format(
+                            value
+                        )
+                    )
+            elif self.subdirs:
+                if self.adf_files:
+                    self.handle_adf_files()
+                else:
+                    for node in self.subdirs:
+                        if node['name'].lower() == 'info':
+                            break
+                    else:
+                        self.stack.extend(self.subdirs)
+                        self.subdirs.clear()
+                        continue
+                    self.handle_adf_files()
+            elif self.adf_files:
+                self.node = SMBDict(self.dir)
+                self.node['type'] = 'entirety'
+                size = 0
+                for node in self.adf_files:
+                    self.node['children'].append(node)
+                    size += node['size']
+                else:
+                    self.node['size'] = size
+                    self.node['name'] = 'coverage.adf'
+                    self.adf_files.clear()
+                self.logger.debug(self.node)
+                return self.node, partial(self.get_entirety, self.node)
+            elif self.stack:
+                self.dir = self.stack.pop()
+                if self.dir['children']:
+                    children = self.dir['children']
+                else:
+                    children = self.get_nodes(self.dir)
+                self.dir['children'] = []
+                if self.dir['name'].lower().endswith('.gdb'):
+                    self.node = SMBDict(self.dir)
+                    self.node['type'] = 'entirety'
+                    self.node['children'] = children
+                    return self.node, partial(self.get_entirety, self.node)
+                else:
+                    for node in children:
+                        if node.get('type', 'dir') == 'dir':
+                            self.subdirs.append(node)
+                        else:
+                            if self.handle_combined_key_file(node):
+                                continue
+                            if self.handle_combined_file(node):
+                                continue
+                            self.isolated_files.append(node)
+            else:
+                raise StopIteration
+
+    def get_nodes(self, node):
+        nodes = self.client.get_nodes(node)
+        return nodes
+
+    def get_file(self, node):
+        f = self.client.get_file(node)
+        md5 = hashlib.file_digest(f, 'md5')
+        node['md5'] = md5.hexdigest()
+        f.seek(0)
+        return f
+
+    def get_entirety(self, node):
+        files = list()
+        md5 = hashlib.md5()
+        for item in node['children']:
+            f = self.get_file(item)
+            files.append(f)
+            md5.update(bytes.fromhex(item['md5']))
+        node['md5'] = md5.hexdigest()
+        return files
+
+    def handle_combined_key_file(self, node):
+        for suffix in combined_suffixes_map.keys():
+            if node['name'].lower().endswith(suffix):
+                node['suffix'] = suffix
+                combined_dir = dict(self.dir)
+                combined_dir['type'] = 'entirety'
+                combined_dir['name'] = node['name']
+                combined_dir['suffixes'] = [suffix]
+                combined_dir['children'] = [node]
+                combined_dir['size'] = node['size']
+                self.combined_files[
+                    node['name'].lower().removesuffix(suffix)
+                ] = combined_dir
+                return True
+        else:
+            return False
+
+    def handle_combined_file(self, node):
+        for suffix in self.value_suffixes_map.keys():
+            if node['name'].lower().endswith(suffix):
+                node['suffix'] = suffix
+                self.subfiles.append(node)
+                return True
+        else:
+            return False
+
+    def handle_adf_files(self):
+        while self.subdirs:
+            node = self.subdirs.pop()
+            if node['children']:
+                children = node['children']
+            else:
+                children = self.get_nodes(node)
+            node['children'] = []
+
+            for item in children:
+                if item['name'].lower().endswith(('.adf', '.dat')):
+                    self.adf_files.extend(children)
+                    break
+            else:
+                node['children'] = children
+                self.stack.append(node)

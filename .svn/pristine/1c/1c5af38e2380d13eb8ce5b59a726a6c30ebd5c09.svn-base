@@ -1,0 +1,34 @@
+{
+    "cls": "crawling.files.smbcrawler.SMBIterator",
+    "iterator": {
+        "auth": {
+            "password": "Spinfo0123",
+            "port": "445",
+            "is_direct_tcp": true,
+            "remote_name": "",
+            "host": "192.190.10.110",
+            "use_ntlm_v2": true,
+            "username": "ank"
+        },
+        "resources": {
+            "type": "file",
+            "name": "share",
+            "path": "share",
+            "comments": "",
+            "isSpecial": false,
+            "children": [
+                {
+                    "path": "share/机密秘密绝密-alltype2",
+                    "isReadOnly": false,
+                    "create_time": 1559795055.0248258,
+                    "children": [],
+                    "last_attr_change_time": 1718759362.6376505,
+                    "name": "机密秘密绝密-alltype2",
+                    "type": "file",
+                    "last_access_time": 1718952847.356305,
+                    "last_write_time": 1693467118.6239188
+                }
+            ]
+        }
+    }
+}

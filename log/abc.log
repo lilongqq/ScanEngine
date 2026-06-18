@@ -1,0 +1,62 @@
+重现步骤
+
+【预制条件】
+
+1、系统正常安装完成。
+
+2、已部署NFS策略且上报事件。
+
+[步骤]
+
+1、secadmin用户登录系统；
+
+2、进入【检查任务-检查结果】页面；
+
+3、选择NFS策略，配置文件共享隔离服务，生效占位符，加密，配置好后可疑事件，再点击【全部隔离】按钮，观察隔离是否成功。
+
+[结果]
+
+3、文件隔离成功，但是隔离记录提示“隔离：服务器内部异常”
+
+se-1  | 2026-06-09 11:24:29 INFO     SMBOne          196  Thread-1117 (process_request_thread)--281462276223392   node:
+se-1  | 2026-06-09 11:24:29 INFO     SMBOne          197  Thread-1117 (process_request_thread)--281462276223392   {'auth': {'host': '192.168.38.102'}, 'sepAuth': {'cloud': '', 'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'resType': 'FILE_SYSTEM', 'domain': '', 'sk': 'Smile@0123', 'host': '192.190.40.159', 'ak': 'administrator', 'pkey': '', 'use_ntlm_v2': True, 'username': 'administrator'}, 'handle': '0100078134272004000000002e2209e4a7104445be31d0c55c778d5e46272004000000009cddd121', 'cls': 'NFS', 'type': 'file', 'remote': 1, 'sepCls': 'SMB', 'uri': '7ad66fce4e6f48e496fa6bf1d5775c41/b00477429fef430a94ec9637ab0dbd60', 'path': '/opt/BZCP/2.1/2.1-a/样本文件_文档格式/27.WPS', 'jobId': ['80585dfd21e942d9b01484f9bde254ab'], 'size': '124416', 'sepPath': 'testshare_all/DBS-S/隔离路径', 'name': '27.WPS', 'placeholder': 1, 'rulesId': 'e029d20eef2a359f844d08f30e4fdacd', 'taskId': '7ad66fce4e6f48e496fa6bf1d5775c41', 'md5': 'd6e333903cbbdcb2727ed15fe5e1958b', 'isEncrypt': 1}
+se-1  | 2026-06-09 11:24:29 INFO     SMBOne          208  Thread-1117 (process_request_thread)--281462276223392   testshare_all
+se-1  | 2026-06-09 11:24:29 INFO     SMBOne          209  Thread-1117 (process_request_thread)--281462276223392   DBS-S/隔离路径
+se-1  | 2026-06-09 11:24:29 INFO     SMBOne          210  Thread-1117 (process_request_thread)--281462276223392   DBS-S/隔离路径/27.WPS
+se-1  | 2026-06-09 11:24:30 WARNING  pyNfsClient     45   Thread-1117 (process_request_thread)--281462276223392   No path mounted, cannot process umount.
+se-1  | 2026-06-09 11:24:30 INFO     WeakCache       132  Thread-1118 (process_request_thread)--281462276223392   create singleton
+se-1  | 2026-06-09 11:24:31 INFO     WeakCache       132  Thread-1118 (process_request_thread)--281462276223392   create singleton
+se-1  | 2026-06-09 11:24:31 INFO     SMB.SMBConnection 104  Thread-1118 (process_request_thread)--281462276223392   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+se-1  | 2026-06-09 11:24:31 INFO     SMB.SMBConnection 130  Thread-1118 (process_request_thread)--281462276223392   Now switching over to SMB2 protocol communication
+se-1  | 2026-06-09 11:24:31 INFO     SMB.SMBConnection 254  Thread-1118 (process_request_thread)--281462276223392   SMB2 dialect negotiation successful
+se-1  | 2026-06-09 11:24:31 INFO     SMB.SMBConnection 366  Thread-1118 (process_request_thread)--281462276223392   Performing NTLMv2 authentication (on SMB2) with server challenge "b'54783cf3de706a89'"
+se-1  | 2026-06-09 11:24:31 INFO     SMB.SMBConnection 369  Thread-1118 (process_request_thread)--281462276223392   Performing NTLMv2 authentication (on SMB2) with server challenge "b'54783cf3de706a89'"
+se-1  | 2026-06-09 11:24:31 INFO     SMB.SMBConnection 399  Thread-1118 (process_request_thread)--281462276223392   Server supports SMB signing
+se-1  | 2026-06-09 11:24:31 INFO     SMB.SMBConnection 415  Thread-1118 (process_request_thread)--281462276223392   SMB signing deactivated. SMB messages will NOT be signed.
+se-1  | 2026-06-09 11:24:31 INFO     SMB.SMBConnection 267  Thread-1118 (process_request_thread)--281462276223392   Authentication (on SMB2) successful!
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          83   Thread-1118 (process_request_thread)--281462276223392   connected is True
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          196  Thread-1118 (process_request_thread)--281462276223392   node:
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          197  Thread-1118 (process_request_thread)--281462276223392   {'auth': {'host': '192.168.38.102'}, 'sepAuth': {'cloud': '', 'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'resType': 'FILE_SYSTEM', 'domain': '', 'sk': 'Smile@0123', 'host': '192.190.40.159', 'ak': 'administrator', 'pkey': '', 'use_ntlm_v2': True, 'username': 'administrator'}, 'handle': '0100078134272004000000002e2209e4a7104445be31d0c55c778d5e5627200400000000f275025e', 'cls': 'NFS', 'type': 'file', 'remote': 1, 'sepCls': 'SMB', 'uri': '7ad66fce4e6f48e496fa6bf1d5775c41/7946dbcca6ef4e36a3228b2693b2bfbd', 'path': '/opt/BZCP/2.1/2.1-a/样本文件_文档格式/47nine.bak', 'jobId': ['80585dfd21e942d9b01484f9bde254ab'], 'size': '29876', 'sepPath': 'testshare_all/DBS-S/隔离路径', 'name': '47nine.bak', 'placeholder': 1, 'rulesId': 'e029d20eef2a359f844d08f30e4fdacd', 'taskId': '7ad66fce4e6f48e496fa6bf1d5775c41', 'md5': 'ebc5349700eea038faed4076b1ce0b7c', 'isEncrypt': 1}
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          208  Thread-1118 (process_request_thread)--281462276223392   testshare_all
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          209  Thread-1118 (process_request_thread)--281462276223392   DBS-S/隔离路径
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          210  Thread-1118 (process_request_thread)--281462276223392   DBS-S/隔离路径/47nine.bak
+se-1  | 2026-06-09 11:24:32 INFO     WeakCache       129  Thread-1119 (process_request_thread)--281462276223392   cache singleton
+se-1  | 2026-06-09 11:24:32 INFO     WeakCache       129  Thread-1119 (process_request_thread)--281462276223392   cache singleton
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          196  Thread-1119 (process_request_thread)--281462276223392   node:
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          197  Thread-1119 (process_request_thread)--281462276223392   {'auth': {'host': '192.168.38.102'}, 'sepAuth': {'cloud': '', 'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'resType': 'FILE_SYSTEM', 'domain': '', 'sk': 'Smile@0123', 'host': '192.190.40.159', 'ak': 'administrator', 'pkey': '', 'use_ntlm_v2': True, 'username': 'administrator'}, 'handle': '0100078134272004000000002e2209e4a7104445be31d0c55c778d5e402720040000000075a4743e', 'cls': 'NFS', 'type': 'file', 'remote': 1, 'sepCls': 'SMB', 'uri': '7ad66fce4e6f48e496fa6bf1d5775c41/ed1c37172fe547e9aea336f3ded52b9b', 'path': '/opt/BZCP/2.1/2.1-a/样本文件_文档格式/10国务院.et', 'jobId': ['80585dfd21e942d9b01484f9bde254ab'], 'size': '27136', 'sepPath': 'testshare_all/DBS-S/隔离路径', 'name': '10国务院.et', 'placeholder': 1, 'rulesId': 'e029d20eef2a359f844d08f30e4fdacd', 'taskId': '7ad66fce4e6f48e496fa6bf1d5775c41', 'md5': '3aa5c4abba3f75abc32c3e2d82f36d09', 'isEncrypt': 1}
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          208  Thread-1119 (process_request_thread)--281462276223392   testshare_all
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          209  Thread-1119 (process_request_thread)--281462276223392   DBS-S/隔离路径
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          210  Thread-1119 (process_request_thread)--281462276223392   DBS-S/隔离路径/10国务院.et
+se-1  | 2026-06-09 11:24:32 INFO     WeakCache       129  Thread-1120 (process_request_thread)--281462276223392   cache singleton
+se-1  | 2026-06-09 11:24:32 INFO     WeakCache       129  Thread-1120 (process_request_thread)--281462276223392   cache singleton
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          196  Thread-1120 (process_request_thread)--281462276223392   node:
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          197  Thread-1120 (process_request_thread)--281462276223392   {'auth': {'host': '192.168.38.102'}, 'sepAuth': {'cloud': '', 'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'resType': 'FILE_SYSTEM', 'domain': '', 'sk': 'Smile@0123', 'host': '192.190.40.159', 'ak': 'administrator', 'pkey': '', 'use_ntlm_v2': True, 'username': 'administrator'}, 'handle': '0100078134272004000000002e2209e4a7104445be31d0c55c778d5e5427200400000000c1e38bc1', 'cls': 'NFS', 'type': 'file', 'remote': 1, 'sepCls': 'SMB', 'uri': '7ad66fce4e6f48e496fa6bf1d5775c41/0725511042bd4a91bf49a4fc6d1b5391', 'path': '/opt/BZCP/2.1/2.1-a/样本文件_文档格式/45xlsb9.46.xlsb', 'jobId': ['80585dfd21e942d9b01484f9bde254ab'], 'size': '9523', 'sepPath': 'testshare_all/DBS-S/隔离路径', 'name': '45xlsb9.46.xlsb', 'placeholder': 1, 'rulesId': 'e029d20eef2a359f844d08f30e4fdacd', 'taskId': '7ad66fce4e6f48e496fa6bf1d5775c41', 'md5': '55943d92160d56fd042c8fe164a16245', 'isEncrypt': 1}
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          208  Thread-1120 (process_request_thread)--281462276223392   testshare_all
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          209  Thread-1120 (process_request_thread)--281462276223392   DBS-S/隔离路径
+se-1  | 2026-06-09 11:24:32 INFO     SMBOne          210  Thread-1120 (process_request_thread)--281462276223392   DBS-S/隔离路径/45xlsb9.46.xlsb
+se-1  | 2026-06-09 11:24:32 WARNING  pyNfsClient     45   Thread-1120 (process_request_thread)--281462276223392   No path mounted, cannot process umount.
+
+
+[期望]
+
+3、隔离成功，隔离记录显示成功。

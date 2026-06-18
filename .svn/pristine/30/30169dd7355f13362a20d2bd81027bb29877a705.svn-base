@@ -1,0 +1,7 @@
+bs4
+pyppeteer
+lxml_html_clean
+requests_html
+nest_asyncio
+exceptiongroup
+

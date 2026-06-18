@@ -1,0 +1,382 @@
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import logging
+import os
+import os.path
+import socket
+import io
+import hashlib
+from selectors import DefaultSelector, EVENT_READ
+from collections import UserDict
+from collections.abc import MutableMapping
+from functools import singledispatchmethod, partial
+from pyNfsClient import Portmap, Mount, NFSv3, MNT3_OK, NFS_PROGRAM, NFS_V3, NFS3_OK, NF3DIR, NF3REG
+from crawling.interface import Iterator, Client
+from common.functools import gen_key
+
+
+class NFSDict(UserDict):
+
+    def __getitem__(self, item):
+        if item == 'timestamp':
+            return self.data['last_write_time']
+        elif item == 'diff':
+            return gen_key(
+                handle=self.data.get('handle'),
+                last_write_time=self.data.get('last_write_time')
+            )
+        else:
+            return self.data[item]
+
+    def __contains__(self, item):
+        if item == 'timestamp':
+            return 'last_write_time' in self.data
+        elif item == 'diff':
+            return {'last_write_time', 'handle'}.issubset(self.data)
+        else:
+            return item in self.data
+
+
+class NFS(Client):
+
+    def __init__(self, host, mnt_port=0, nfs_port=0, timeout=600, encoding='utf-8'):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.host = host
+        self.timeout = int(timeout)
+        self.encoding = encoding
+        self.auth = {
+            "flavor": 1,
+            "machine_name": socket.gethostname(),
+            "uid": os.getuid(),
+            "gid": os.getgid(),
+            "aux_gid": os.getgroups()
+        }
+        self.mnt_port = int(mnt_port)
+        self.nfs_port = int(nfs_port)
+        if not (self.mnt_port and self.nfs_port):
+            self.portmap = Portmap(self.host, timeout=self.timeout)
+            self.portmap.connect()
+            if not self.mnt_port:
+                self.mnt_port = self.portmap.getport(Mount.program, Mount.program_version)
+            if not self.nfs_port:
+                self.nfs_port = self.portmap.getport(NFS_PROGRAM, NFS_V3)
+        self.mount = Mount(host=self.host, port=self.mnt_port, timeout=self.timeout, auth=self.auth)
+        self.mount.connect()
+        self.nfsv3 = NFSv3(host=self.host, port=self.nfs_port, timeout=self.timeout, auth=self.auth)
+        self.nfsv3.connect()
+        self.selector = DefaultSelector()
+        self.selector.register(self.mount.client, EVENT_READ)
+        self.selector.register(self.nfsv3.client, EVENT_READ)
+
+    @singledispatchmethod
+    def get_nodes(self, *args, **kwargs):
+        raise NotImplemented
+
+    @get_nodes.register(MutableMapping)
+    def _(self, node):
+        if node and node.get('path', node['name']):
+            path = node.get('path', node['name'])
+        else:
+            path = ''
+        if node.get('handle', None):
+            dir_handle = node['handle']
+            nodes = self.readdirplus(
+                bytes.fromhex(dir_handle)
+            )
+            for node in nodes:
+                node['path'] = os.path.join(path, node['name'])
+                node['dir_handle'] = dir_handle
+        elif path:
+            mount3res = self.mount.mnt(path)
+            if mount3res['status'] == MNT3_OK:
+                dir_handle = mount3res['mountinfo']['fhandle'].hex()
+                nodes = self.readdirplus(mount3res['mountinfo']['fhandle'])
+                for node in nodes:
+                    node['path'] = os.path.join(path, node['name'])
+                    node['dir_handle'] = dir_handle
+            else:
+                raise OSError
+        else:
+            nodes = self.exports()
+        return nodes
+
+    @get_nodes.register(str)
+    def _(self, path):
+        nodes = list()
+        if path:
+            mount3res = self.mount.mnt(path)
+            if mount3res['status'] == MNT3_OK:
+                handle = mount3res['mountinfo']['fhandle']
+                getattr3res = self.nfsv3.getattr(handle)
+                if getattr3res['status'] == NFS3_OK:
+                    attr = getattr3res['attributes']
+                    if attr['type'] in (NF3REG, NF3DIR):
+                        node = dict()
+                        node['name'] = os.path.basename(path)
+                        node['path'] = path
+                        node['handle'] = handle.hex()
+                        node['mode'] = attr['mode']
+                        node['nlink'] = attr['nlink']
+                        node['uid'] = attr['uid']
+                        node['gid'] = attr['gid']
+                        node['size'] = attr['size']
+                        node['used'] = attr['used']
+                        node['fsid'] = attr['fsid']
+                        node['fileid'] = attr['fileid']
+                        node['create_time'] = attr['ctime']['seconds']
+                        node['last_access_time'] = attr['atime']['seconds']
+                        node['last_write_time'] = attr['mtime']['seconds']
+                        if attr['type'] == NF3DIR:
+                            node['children'] = []
+                        nodes = list().append(node)
+                else:
+                    raise OSError
+        else:
+            nodes = self.exports()
+        return nodes
+
+    def get_file(self, node):
+        f = io.BytesIO()
+        offset = 0
+        while True:
+            read3res = self.nfsv3.read(
+                bytes.fromhex(node['handle']),
+                offset=offset
+            )
+            if read3res['status'] == NFS3_OK:
+                f.write(read3res['resok']['data'])
+                offset += read3res['resok']['count']
+                if read3res['resok']['eof']:
+                    break
+            else:
+                raise OSError
+        f.seek(0)
+        return f
+
+    def store_file(self, node, f):
+        self.logger.info('store_file node:')
+        self.logger.info(node)
+        sep_path = node.get('sepPath', '')
+        file_name = node.get('name', '')
+        if not sep_path or not file_name:
+            raise ValueError('sepPath or name is empty')
+        mount3res = self.mount.mnt(sep_path)
+        if mount3res['status'] != MNT3_OK:
+            raise OSError('Failed to mount {}'.format(sep_path))
+        dir_fh = mount3res['mountinfo']['fhandle']
+        create3res = self.nfsv3.create(dir_fh, file_name, 0)
+        if create3res['status'] != NFS3_OK:
+            raise OSError('Failed to create file {}'.format(file_name))
+        obj = create3res['resok']['obj']
+        if obj.get('present'):
+            file_fh = obj['handle']['data']
+        else:
+            lookup3res = self.nfsv3.lookup(dir_fh, file_name)
+            if lookup3res['status'] != NFS3_OK:
+                raise OSError('Failed to lookup file {} after create'.format(file_name))
+            file_fh = lookup3res['resok']['object']['data']
+        offset = 0
+        while True:
+            chunk = f.read(32768)
+            if not chunk:
+                break
+            write3res = self._write_binary(file_fh, offset, chunk)
+            if write3res['status'] != NFS3_OK:
+                raise OSError('Failed to write to file {}'.format(file_name))
+            offset += write3res['resok']['count']
+
+    def _write_binary(self, file_fh, offset, data_bytes, stable_how=2):
+        from pyNfsClient.pack import nfs_pro_v3Packer, nfs_pro_v3Unpacker
+        from pyNfsClient.rtypes import write3args, nfs_fh3
+        from pyNfsClient.const import NFS3_PROCEDURE_WRITE
+        packer = nfs_pro_v3Packer()
+        packer.pack_write3args(write3args(
+            file=nfs_fh3(file_fh),
+            offset=offset,
+            count=len(data_bytes),
+            stable=stable_how,
+            data=data_bytes
+        ))
+        res = self.nfsv3.nfs_request(NFS3_PROCEDURE_WRITE, packer.get_buffer(), self.nfsv3.auth)
+        unpacker = nfs_pro_v3Unpacker(res)
+        return unpacker.unpack_write3res()
+
+    def empty_file(self, node):
+        path = node.get('path', node['name'])
+        if not path:
+            raise ValueError('path is empty')
+        file_name = node.get('name', os.path.basename(path))
+        dir_path = os.path.dirname(path)
+        if node.get('dir_handle'):
+            dir_fh = bytes.fromhex(node['dir_handle'])
+        else:
+            mount3res = self.mount.mnt(dir_path)
+            if mount3res['status'] != MNT3_OK:
+                raise OSError('Failed to mount {}'.format(dir_path))
+            dir_fh = mount3res['mountinfo']['fhandle']
+        self.nfsv3.remove(dir_fh, file_name)
+        create3res = self.nfsv3.create(dir_fh, file_name, 0)
+        if create3res['status'] != NFS3_OK:
+            raise OSError('Failed to create empty file {}'.format(file_name))
+
+    @singledispatchmethod
+    def delete_file(self, *args, **kwargs):
+        raise NotImplemented
+
+    @delete_file.register(MutableMapping)
+    def _(self, node):
+        mount3res = self.mount.mnt(os.path.dirname(node['path']))
+        if mount3res['status'] == MNT3_OK:
+            remove3res = self.nfsv3.remove(
+                mount3res['mountinfo']['fhandle'], node['name'])
+            if remove3res['status'] != NFS3_OK:
+                raise OSError('Failed to remove file {}'.format(node['name']))
+        else:
+            raise OSError('Failed to mount {}'.format(
+                os.path.dirname(node['path'])))
+
+    @delete_file.register(str)
+    def _(self, path):
+        mount3res = self.mount.mnt(os.path.dirname(path))
+        if mount3res['status'] == MNT3_OK:
+            remove3res = self.nfsv3.remove(
+                mount3res['mountinfo']['fhandle'], os.path.basename(path))
+            if remove3res['status'] != NFS3_OK:
+                raise OSError('Failed to remove file {}'.format(
+                    os.path.basename(path)))
+        else:
+            raise OSError('Failed to mount {}'.format(os.path.dirname(path)))
+
+    def exports(self):
+        nodes = list()
+        exports = self.mount.export()
+        while len(exports) > 0:
+            item = exports[0]
+            node = dict()
+            dirpath = item.ex_dir.decode(self.encoding)
+            node['type'] = 'file'
+            node['name'] = dirpath
+            node['path'] = dirpath
+            node['children'] = []
+            nodes.append(node)
+            exports = item.ex_next
+        return nodes
+
+    def readdirplus(self, fh3):
+        nodes = list()
+        readdir3res = self.nfsv3.readdirplus(fh3)
+        if readdir3res['status'] == NFS3_OK:
+            entry = readdir3res['resok']['reply']['entries']
+            while len(entry) > 0:
+                item = entry[0]
+                node = dict()
+                node['type'] = 'file'
+                node['name'] = item['name'].decode(self.encoding)
+                if node['name'] == '.' or node['name'] == '..':
+                    entry = item['nextentry']
+                    continue
+                handle = item['name_handle']['handle']['data']
+                node['handle'] = handle.hex()
+                getattr3res = self.nfsv3.getattr(handle)
+                if getattr3res['status'] == NFS3_OK:
+                    attr = getattr3res['attributes']
+                    if attr['type'] not in (NF3REG, NF3DIR):
+                        entry = item['nextentry']
+                        continue
+                    node['mode'] = attr['mode']
+                    node['nlink'] = attr['nlink']
+                    node['uid'] = attr['uid']
+                    node['gid'] = attr['gid']
+                    node['size'] = attr['size']
+                    node['used'] = attr['used']
+                    node['fsid'] = attr['fsid']
+                    node['fileid'] = attr['fileid']
+                    node['create_time'] = attr['ctime']['seconds']
+                    node['last_access_time'] = attr['atime']['seconds']
+                    node['last_write_time'] = attr['mtime']['seconds']
+                    if attr['type'] == NF3DIR:
+                        node['children'] = []
+                    nodes.append(node)
+                    entry = item['nextentry']
+        else:
+            raise OSError
+        return nodes
+
+    def __bool__(self):
+        if getattr(self, 'selector', False):
+            events = self.selector.select(timeout=0)
+            return not events
+        else:
+            return False
+
+    def __del__(self):
+        if getattr(self, 'nfsv3', False):
+            self.nfsv3.disconnect()
+        if getattr(self, 'mount', False):
+            self.mount.umnt(self.auth)
+            self.mount.disconnect()
+        if getattr(self, 'portmap', False):
+            self.portmap.disconnect()
+        if getattr(self, 'selector', False):
+            self.selector.close()
+
+
+class NFSBatch(NFS):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class NFSOne(NFS):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class NFSIterator(Iterator):
+
+    def __init__(self, auth, resources={}):
+        self.auth = auth
+        self.client = NFSBatch(**self.auth)
+        self.stack = list()
+        if resources:
+            self.stack.append(resources)
+        self.node = NFSDict()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while len(self.stack) > 0:
+            self.node = NFSDict(self.stack.pop())
+            self.node['auth'] = self.auth
+            self.node['cls'] = 'NFS'
+            if 'children' in self.node:
+                if self.node['children']:
+                    children = self.node['children']
+                else:
+                    children = self.get_nodes(self.node)
+                children.reverse()
+                self.stack.extend(children)
+            else:
+                return self.node, partial(self.get_file, self.node)
+        raise StopIteration
+
+    def __bool__(self):
+        return bool(self.stack)
+
+    def get_nodes(self, node):
+        nodes = self.client.get_nodes(node)
+        return nodes
+
+    def add_nodes(self, nodes):
+        self.stack.extend(nodes)
+
+    def get_file(self, node):
+        f = self.client.get_file(node)
+        md5 = hashlib.md5()
+        md5.update(f.getbuffer())
+        node['md5'] = md5.hexdigest()
+        return f.getvalue()

@@ -1,0 +1,374 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import logging
+import io
+import hashlib
+import stat
+from tempfile import SpooledTemporaryFile
+from datetime import datetime
+from selectors import DefaultSelector, EVENT_READ
+import os.path
+from ftplib import FTP
+from collections.abc import MutableMapping
+from collections import UserDict
+from functools import singledispatchmethod, partial
+from ftputil.stat import UnixParser, MSParser
+from exstd.ftplib import FTPS
+from crawling.interface import Iterator, Client
+from common.globals import Variables
+from common.functools import gen_key, boolean
+from common.conntool import client_pool, weak_cache
+
+
+class FTPDict(UserDict):
+
+    def __getitem__(self, item):
+        if item == 'timestamp':
+            return self.data['last_write_time']
+        elif item == 'diff':
+            return gen_key(
+                path=self.data.get('path'),
+                last_write_time=self.data.get('last_write_time')
+            )
+        else:
+            return self.data[item]
+
+    def __contains__(self, item):
+        if item == 'timestamp':
+            return 'last_write_time' in self.data
+        elif item == 'diff':
+            return {'last_write_time', 'path'}.issubset(self.data)
+        else:
+            return item in self.data
+
+
+class Ftp(Client):
+
+    def __init__(
+            self,
+            host,
+            port=21,
+            username='',
+            password='',
+            acct='',
+            keyfile=None,
+            certfile=None,
+            timeout=30,
+            encoding='utf-8',
+            ssl_wrap=False,
+            prot_p=True,
+            mode='MLSD',  # FEAT MLSD LIST
+            parser='Unix',  # Unix MS
+            **kwargs
+    ):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.variables = Variables()
+        self.host = host
+        self.port = int(port)
+        self.username = username
+        self.password = password
+        self.acct = acct
+        self.certfile = certfile
+        self.keyfile = keyfile
+        self.timeout = int(timeout)
+        self.encoding = encoding
+        self.prot_p = boolean(prot_p)
+        self.mode = mode
+        if self.mode == 'LIST':
+            if parser == 'Unix':
+                self.parser = UnixParser()
+            else:
+                self.parser = MSParser()
+        else:
+            self.parser = None
+        self.ssl_wrap = boolean(ssl_wrap)
+        self.modify_format = self.variables.ftp['modify_format']
+        if self.ssl_wrap:
+            self.client = FTPS(
+                keyfile=self.keyfile,
+                certfile=self.certfile,
+                encoding=self.encoding
+            )
+        else:
+            self.client = FTP(
+                encoding=self.encoding
+            )
+        self.client.connect(
+            host=self.host,
+            port=self.port,
+            timeout=self.timeout
+        )
+        self.client.login(
+            user=self.username,
+            passwd=self.password,
+            acct=self.acct
+        )
+        if self.ssl_wrap and self.prot_p:
+            self.client.prot_p()
+        self.selector = DefaultSelector()
+        self.selector.register(self.client.sock, EVENT_READ)
+
+    def get_nodes(self, *args, **kwargs):
+        if self.mode == 'MLSD':
+            return self.mlsd_nodes(*args, **kwargs)
+        else:
+            return self.list_nodes(*args, **kwargs)
+
+    @singledispatchmethod
+    def mlsd_nodes(self, *args, **kwargs):
+        raise NotImplemented
+
+    @singledispatchmethod
+    def list_nodes(self, *args, **kwargs):
+        raise NotImplemented
+
+    @list_nodes.register(MutableMapping)
+    def _(self, node):
+        nodes = list()
+        if node and node.get('path', node['name']):
+            path = node.get('path', node['name'])
+        else:
+            path = ""
+        self.logger.info('list')
+        self.logger.info(f'path: {path}')
+        self.client.dir(path, partial(self.parse_lines, path, nodes))
+        return nodes
+
+    @list_nodes.register(str)
+    def _(self, path=""):
+        nodes = list()
+        self.logger.info('list')
+        self.logger.info(f'path: {path}')
+        self.client.dir(path, partial(self.parse_lines, path, nodes))
+        return nodes
+
+    def parse_lines(self, path, nodes, line):
+        node = dict()
+        self.logger.info(f'line: {line}')
+        if self.parser.ignores_line(line):
+            self.logger.info(line)
+        else:
+            item = self.parser.parse_line(line)
+            if item._st_name not in ['.', '..']:
+                if stat.S_ISDIR(item.st_mode):
+                    node['type'] = 'dir'
+                    node['name'] = item._st_name
+                    node['last_write_time'] = item.st_mtime
+                    node['children'] = []
+                    node['path'] = os.path.join(path, item._st_name)
+                    nodes.append(node)
+                elif stat.S_ISREG(item.st_mode):
+                    node['type'] = 'file'
+                    node['name'] = item._st_name
+                    node['last_write_time'] = item.st_mtime
+                    node['path'] = os.path.join(path, item._st_name)
+                    nodes.append(node)
+
+    @mlsd_nodes.register(MutableMapping)
+    def _(self, node):
+        nodes = list()
+        if node and node.get('path', node['name']):
+            path = node.get('path', node['name'])
+        else:
+            path = ""
+        self.logger.info('mlsd')
+        self.logger.info(f'path: {path}')
+        resp = self.client.mlsd(path)
+        for item in resp:
+            self.logger.info(item)
+            try:
+                if item[1]['type'] == 'cdir':
+                    continue
+                node = self.format(item)
+            except:
+                self.logger.error(item)
+                raise
+            node['path'] = os.path.join(path, node['name'])
+            nodes.append(node)
+        return nodes
+
+    @mlsd_nodes.register(str)
+    def _(self, path=""):
+        nodes = list()
+        self.logger.info('mlsd')
+        self.logger.info(f'path: {path}')
+        resp = self.client.mlsd(path)
+        for item in resp:
+            self.logger.info(item)
+            try:
+                if item[1]['type'] == 'cdir':
+                    continue
+                node = self.format(item)
+            except:
+                self.logger.error(item)
+                raise
+            if node['name'] == os.path.basename(path):
+                node['path'] = path
+            else:
+                node['path'] = os.path.join(path, node['name'])
+            nodes.append(node)
+        return nodes
+
+    @singledispatchmethod
+    def get_file(self, *args, **kwargs):
+        raise NotImplemented
+
+    @get_file.register(MutableMapping)
+    def _(self, node):
+        path = node.get('path', node['name'])
+        self.logger.info('RETR')
+        self.logger.info(f'path: {path}')
+        f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
+        self.client.retrbinary('RETR ' + path, f.write)
+        node['size'] = int(f.tell())
+        f.seek(0)
+        return f
+
+    @get_file.register(str)
+    def _(self, path):
+        self.logger.info('RETR')
+        self.logger.info(f'path: {path}')
+        f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
+        self.client.retrbinary('RETR ' + path, f.write)
+        f.seek(0)
+        return f
+
+    @singledispatchmethod
+    def delete_file(self, *args, **kwargs):
+        raise NotImplemented
+
+    @delete_file.register(MutableMapping)
+    def _(self, node):
+        path = node.get('path', node['name'])
+        resp = self.client.delete(path)
+        return resp
+
+    @delete_file.register(str)
+    def _(self, path):
+        resp = self.client.delete(path)
+        return resp
+
+    @singledispatchmethod
+    def put_file(self, *args, **kwargs):
+        raise NotImplemented
+
+    @put_file.register(MutableMapping)
+    def _(self, node, f):
+        path = node.get('path', node['name'])
+        resp = self.client.storbinary(
+            f'STOR {path}',
+            f
+        )
+        return resp
+
+    @put_file.register(str)
+    def _(self, path, f):
+        resp = self.client.storbinary(
+            f'STOR {path}',
+            f
+        )
+        return resp
+
+    def empty_file(self, node):
+        f = io.BytesIO()
+        self.put_file(node, f)
+
+    def store_file(self, node, f):
+        path = os.path.join(node.get('sepPath', ''), node['name'])
+        self.put_file(path, f)
+
+    def format(self, item):
+        node = dict()
+        if item[1]['type'] == 'dir':
+            node['type'] = 'dir'
+            node['name'] = item[0]
+            node['last_write_time'] = datetime.strptime(
+                item[1]['modify'], self.modify_format
+            ).timestamp()
+            node['children'] = []
+        else:
+            node['type'] = 'file'
+            node['name'] = item[0]
+            if 'size' in item[1]:
+                node['size'] = int(item[1]['size'])
+            node['last_write_time'] = datetime.strptime(
+                item[1]['modify'], self.modify_format
+            ).timestamp()
+        return node
+
+    def __bool__(self):
+        if getattr(self, 'selector', False):
+            events = self.selector.select(timeout=0)
+            return not events
+        else:
+            return False
+
+    def __del__(self):
+        if getattr(self, 'client', False):
+            self.client.quit()
+        if getattr(self, 'selector', False):
+            self.selector.close()
+
+
+@client_pool(max_connections=1)
+class FTPBatch(Ftp):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+@weak_cache
+@client_pool(max_connections=1)
+class FTPOne(Ftp):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class FTPIterator(Iterator):
+
+    def __init__(self, auth, resources={}):
+        self.auth = auth
+        self.client = FTPBatch(**self.auth)
+        self.stack = list()
+        if resources:
+            self.stack.append(resources)
+        self.node = FTPDict()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while len(self.stack) > 0:
+            self.node = FTPDict(self.stack.pop())
+            self.node['auth'] = self.auth
+            self.node['cls'] = 'FTP'
+            if 'children' in self.node:
+                if self.node['children']:
+                    children = self.node['children']
+                else:
+                    children = self.get_nodes(self.node)
+                children.reverse()
+                self.stack.extend(children)
+            else:
+                return self.node, partial(self.get_file, self.node)
+        raise StopIteration
+
+    def __bool__(self):
+        return bool(self.stack)
+
+    def get_nodes(self, node):
+        nodes = self.client.get_nodes(node)
+        return nodes
+
+    def add_nodes(self, nodes):
+        self.stack.extend(nodes)
+
+    def get_file(self, node):
+        f = self.client.get_file(node)
+        md5 = hashlib.file_digest(f, 'md5')
+        node['md5'] = md5.hexdigest()
+        f.seek(0)
+        return f

@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import logging
+from common.globals import Redis, Variables
+
+
+class Differator(object):
+
+    def __init__(self, strategy, rules):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.strategy = strategy
+        self.rules = rules
+        self.variables = Variables()
+        self.client = Redis(**self.variables.redis['auth'])
+        self.name = ':'.join(
+            [
+                self.variables.redis['diff'],
+                self.strategy,
+                self.rules
+            ]
+        )
+        self.exists = self.client.exists(self.name)
+        self.logger.info('diff key: %s  exists: %s', self.name, self.exists)
+        self.logger.warning('[DEBUG] Differator init - name=%s, exists=%s, strategy=%s, rules=%s',
+                           self.name, self.exists, strategy, rules)
+
+    def __call__(self, node):
+        self.logger.warning('[DEBUG] Differator call - exists=%s, node_diff=%s', self.exists, node.get('diff'))
+        if self.exists:
+            if 'diff' in node:
+                diff_val = node['diff']
+                result = self.client.sismember(self.name, diff_val)
+                self.logger.info('sismember  key: %s  diff: %s  hit: %s', self.name, diff_val, result)
+                self.logger.warning('[DEBUG] Differator check - key=%s, diff=%s, sismember=%s, return=%s',
+                                   self.name, diff_val, result, not result)
+                return not result
+            else:
+                self.logger.warning('[DEBUG] Differator - no diff in node, return True')
+                return True
+        else:
+            self.logger.warning('[DEBUG] Differator - exists=0, skip check, return True')
+            return True

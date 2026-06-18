@@ -1,0 +1,48 @@
+{
+    "scheduler": {
+        "op": "start"
+    },
+    "identity": "bf98e06c8be14132a2c1626ba4b18742",
+    "cls": "strategy.Discovery",
+    "strategy": {
+        "itercls": "MONGO",
+        "iterator": {
+            "auth": {
+                "password": "",
+                "port": "27017",
+                "host": "192.168.37.88",
+                "username": ""
+            },
+            "resources": {
+                "name": "",
+                "children": [
+                    {
+                        "type": "file",
+                        "name": "132c_bin",
+                        "path": "132c_bin",
+                        "layer": "schema",
+                        "schema_name": "132c_bin",
+                        "children": [
+                            {
+                                "name": "fs",
+                                "path": "132c_bin/fs",
+                                "schema_name": "132c_bin",
+                                "layer": "table"
+                            }
+                        ],
+                        "schema_def": "userDef"
+                    }
+                ]
+            }
+        },
+        "action": {
+            "method": "file",
+            "url_enabled": "0",
+            "cls": "dataprocessing.storage.MinioStorage",
+            "url_distinguish_count": "",
+            "url_distinguish_type": ""
+        },
+        "filters": {},
+        "rules_id": "e51a1bc4-e32f-3377-afa8-a319e8c1472e"
+    }
+}

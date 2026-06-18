@@ -1,0 +1,51 @@
+{
+    "scheduler": {
+        "op": "start"
+    },
+    "identity": "e5d76f2015e94462b56f9e37fe344c62",
+    "cls": "strategy.Discovery",
+    "partitions": [
+        0,
+        1,
+        2
+    ],
+    "strategy": {
+        "iterator": {
+            "auth": {
+                "password": "Spinfo@01234",
+                "port": 22,
+                "host": "192.190.10.167",
+                "username": "root"
+            },
+            "resources": {
+                "children": [
+                    {
+                        "path": "/opt/",
+                        "size": 131,
+                        "children": [],
+                        "name": "hhy",
+                        "type": "file",
+                        "last_access_time": 1741833126,
+                        "last_write_time": 1741312773
+                    }
+                ],
+                "name": "/"
+            }
+        },
+        "action": {
+            "method": "file",
+            "url_enabled": "0",
+            "cls": "dataprocessing.storage.MinioStorage",
+            "url_distinguish_count": "",
+            "url_distinguish_type": ""
+        },
+        "cls": "SFTP",
+        "filters": {
+            "size": {
+                "le": 83886080,
+                "gt": 0
+            }
+        },
+        "rules_id": "a1e3eb2eb8673245b19252c10dcd39e8"
+    }
+}

@@ -1,0 +1,24 @@
+dbtype: access #数据库类型
+username : "" #数据库的用户名，不涉及
+password : "" # 数据库的密码，非必填，可能有，可能没有
+url: "" # jdbc url 在sqlite和access不涉及
+extra:
+  auth:
+    username: lijiahao # smb 用户名
+    password: Spinfo0  # smb密码
+    host: 192.190.10.121 # smb主机
+    port: 445 # smb端口
+    remote_name: "" # smb主机名 ，非必填
+    domain: "" #smb域名，非必填
+    use_ntlm_v2: true # smb2 使用445端口，同时
+    is_direct_tcp : true
+  node :
+    create_time: 1662012786.4994347 # 时间参数根据服务器实际，有就有没有就没有
+    isReadOnly: false # 服务器的文件属性，有什么传什么
+    last_access_time: 1662183868.628309 # 时间参数根据服务器实际，有就有没有就没有
+    last_attr_change_time: 1662012343.106522 # 时间参数根据服务器实际，有就有没有就没有
+    last_write_time: 1652669019.9284716 # 时间参数根据服务器实际，有就有没有就没有
+    name: my.db #文件名
+    path: 115/my.db #在服务器位置
+    size: 4172 #必有
+    type: file #file , string, binary 分别代表文件，数据库字符串，数据库二进制

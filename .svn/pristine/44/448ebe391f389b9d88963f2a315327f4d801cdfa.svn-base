@@ -1,0 +1,829 @@
+import json
+
+SMB = {
+	"identity": "0e5a5064e95d40a2b0648842c0089f89",
+	"scheduler": {
+        "date_time": "",
+        "op": "start"
+	},
+	"operate": "create",
+	"cls": "strategy.Discovery",
+	"strategy": {
+		"cls": "crawling.files.smbcrawler.SMBIterator",
+        "rules_id":"0e5a5064e95d40a2b0648842c0089f89",
+		"iterator": {
+			"auth": {
+				"username": "administrator",
+				"password": "Spinfo@0123",
+				"ip": "192.190.10.102"
+			},
+			"resources": {
+				"name": "",
+				"children": [
+					{
+						"children": [],
+						"comments": "",
+						"isSpecial": False,
+						"name": "115"
+					}
+				]
+			}
+		},
+		"filters": {
+			"time": "",
+			"size": "",
+			"type": ""
+		},
+		"action": {
+			"cls": "dataprocessing.storage.MinioStorage",
+			"method": "file"
+		}
+	}
+}
+
+pubkey = '''-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEAvjLTy3Er12t84HSpU9UD/TeCX912QIyJS3IhVW1IRDVQNQTo
+HEkvrnr1N/VzzRDMRJUFPtMKdLUIYoVtiWfVdx4Fh8TVRPvOrnbBugRjqXE3mYV0
+il+LrYqE2MlXYar1/9aa0nb6ibqB1VIaGsC5g7FliYXDN058vSlQSVPiLVvWhdRP
+EfV+vhWFtw/oHo7iv/fKhdEuZhnRA/ILS23EGArh0nW11PvJMksBwLD0s3SAsKRC
+21d88zhdQHeN5Sqoq38qRLTh0o87i4HFIyuYrM7Db6QhoBV1+HWz0cE5s3mgVPs3
+po/3b6FN2O9OpNGnfM8UEM4FJxmc6LUEpiSiCQIDAQABAoIBAQCjYHerrrfxIGSx
+TaTR3Q3DKjZ0cICOa+nXg978SZYk+QK/uEpFWdx6bSZM/iuNv9snIjbSQ2gc3hCo
+yGJSAH5OBtzLRhnIWuCr3lkEl5agSx9uYUO9RNtvo6f/q9vCip8rN0XgedE2E55J
+BnBkAJ6ab/x/SAZrcKEXv/A2PLbxLBIEC/p0W4kr1559hqtJjsnqq1HUrB6Aw76g
+3YpAo84bONsTSzFxmxOQ5I50Ahqx+Dzy6fxLJZkcNJPQ4va02EquCUObWCqdMypW
+hV1vpocxtWZbDPJ3QdtTvKjQPCWYCisGfw5okYN8DRgnzt2eOHeCy3RgPqke1IWd
+5BYkKsNxAoGBAOH9kKoKqlyIFFd9pB6A1n2lFYK3+ew5TeJCBmhoWpGhWBdEgYLy
+BotuH3oOCCmiZeMLWjcAmfPznXmet/8Sw6WFyZ4YHe1KUVmT5nA6FPW87Sz+mzSq
+KDMuAKWaIoBYkzKohZjTBYBhU5q4xiDq3xeUuE4o13WByAIsHBl7YG7tAoGBANd0
+iGQcndvecagAG8e5KyJ22daNx+RMJ6TwrUM5vY9tcvKpnEP2lkjij2w/LHnLOfVI
+q9Dnq1lAOd5mbpngrnSL0FfHrFVDrjPsVufyzCUgJTem5yGJoJQpHz8r2fEoAYD3
+MA25BAz0yiBxWfGbviiEw2F3qcHWq2kTkIdEWwANAoGAHCfALz827GJTznarzNUW
+Y/7+SBPtwj19c5PwQm/F4ODuHa/+Rrcqk5J7v3QiFjXSZdATREkB5T/TvcRFfjTz
+RRr+/IBasiaRLgzcJ91EoT0Re4qZAZ21dnLjx74FUGI4rJYMVvbrd4woo10j6hP5
+CXIQ6EP0XAJ4TbT7Jz2UzR0CgYAygntHHP5VAT0b6YqZs+tM1RgUmIB4IPJaVKIJ
+1IuACGSeRuz/cduhkpuVAOpoUyBvRG4jN2yQK+JlJRZgtK+xWuWo7oKUKp24RnvJ
+PL5nJbYT6ejdj+o5UbqlkJ4zTvGrTkfRr8InV2vbVzeC0MQvs5AqVWdSrgTZSWDk
+lT3QMQKBgDXAh5msBqnfRMePfvCqHDDc2pgsxQsJUUEZC3yMJTvacK2bVA4xvxW+
+3YbiK2X5WpuaJvVsXVw8R4Wt1N4A7bmTtjppyYwU9B2nkOyRA8bCImNaqKWPio9a
+3eVvc5tpzZPZd1jHJ0+u4Z7WZWJ+3XVFdYV7LFVjXRqGOAYFb5si
+-----END RSA PRIVATE KEY-----'''
+
+linux = {
+    'identity': '0e5a5064-e95d-40a2-b064-8842c008-linux',
+    'scheduler': {
+        'date_time': '',
+        'op': 'start'
+    },
+    'cls': 'strategy.Discovery',
+    'strategy': {
+        'cls': 'crawling.files.sftpcrawler.SFtpIterator',
+        'rules_id': '0e5a5064-e95d-40a2-b064-8842c008',
+        'iterator': {
+            'auth': {
+                'username': 'root',
+                'user_key': pubkey,
+                'port': 8022,
+                'ip': '192.168.38.101'
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': '/opt/TestData600G/testshare_all/test/txt'},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+
+ftp  = {
+	'scheduler': {
+		'op': 'start'
+	},
+	'identity': '86a98341bbb7462c9845c8333c35569f',
+	'cls': 'strategy.debug.Discovery',
+	'strategy': {
+		'iterator': {
+			'auth': {
+				'password': '123',
+				'port': '21',
+				'ip': '192.190.10.102',
+				'username': 'root'
+			},
+			'resources': {
+				'children': [{
+					'comments': '',
+					'isReadOnly': False,
+					'create_time': '20220830103541',
+					'isSpecial': True,
+					'children': [],
+					'last_attr_change_time': '20220830103541',
+					'name': '',
+					'last_access_time': '20220830103541',
+					'last_write_time': '20220830103541'
+				}],
+				'name': ''
+			}
+		},
+		'action': {
+			'method': 'file',
+			'cls': 'dataprocessing.storage.MinioStorage'
+		},
+		'cls': 'crawling.files.ftpcrawler.FtpIterator',
+		'filters': {
+			'kwargs': {},
+			'position': 'pre'
+		},
+		'rules_id': 'd2a1d5369cc2ac2fa7cda5af8366b31a'
+	}
+}
+
+webdav  = {
+    'identity': '0e5a5064-e95d-40a2-b064-1121',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+
+    },
+    'cls': 'strategy.Discovery',
+    'strategy': {
+        'cls': 'webdav',
+        'iterator': {
+            'auth': {
+                'url': 'http://192.168.39.80/webdav',
+                'username': 'tester',
+                'password': 'Spinfo0123'
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': ''},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+redis  = {
+    'identity': '0e5a5064-e95d-40a2-b064-redis',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+    },
+    'cls': 'strategy.debug.Discovery',
+    'strategy': {
+        'cls': 'crawling.database.rediscrawler.RedisIterator',
+        'rules_id': '59b5ec199be1428647cf026b21ab0b9d',
+        'iterator': {
+            'auth': {
+                'port': 6379,
+                'ip': '192.190.10.120',
+                'password':'Spinfo0123'
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': 'db0'},
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': 'db2'}
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'db'
+        }
+    }
+}
+
+hbase  = {
+    'identity': '0e5a5064-e95d-40a2-b064-hbase',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+    },
+    'cls': 'strategy.Discovery',
+    'strategy': {
+        'cls': 'crawling.database.hbasecrawler.HbaseIterator',
+        'iterator': {
+            'auth': {
+                'port': 9090,
+                'ip': '192.168.38.242'
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': '3k_picfinger'},
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': '21a_filetype'},
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': '21c_ocrtype'},
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': '21b_8zip'},
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': '3j_usb'}
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+
+mongo  = {
+	'scheduler': {
+		'op': 'start'
+	},
+	'identity': 'df86403096e0430abfec75efde58c444',
+	'cls': 'strategy.debug.Discovery',
+	'strategy': {
+		'iterator': {
+			'auth': {
+				'password': '',
+				'port': '27017',
+				'ip': '192.168.37.87',
+				'username': ''
+			},
+			'resources': {
+				'children': [{
+					'children': [],
+					'name': 'runoobdb',
+					'is_binary': True,
+					'layer': 'schema',
+					'schema_def': 'userDef'
+				}],
+				'name': '',
+				'is_binary': True
+			}
+		},
+		'action': {
+			'method': 'db',
+			'cls': 'dataprocessing.storage.MinioStorage'
+		},
+		'filters': {},
+		'cls': 'crawling.database.mongocrawler.MongoIterator',
+		'rules_id': '1c63c5051162c672bd13d030ffe24780'
+	}
+}
+
+mongo2  =  {
+	'scheduler': {
+		'op': 'start'
+	},
+	'identity': '3de8a3c7509b42928a79e84bff02d7ca',
+	'cls': 'strategy.Discovery',
+	'strategy': {
+		'iterator': {
+			'auth': {
+				'password': '',
+				'port': '27017',
+				'ip': '192.168.37.87',
+				'username': ''
+			},
+			'resources': {
+				'children': [{
+					'children': [],
+					'name': 'javamongoTest',
+					'is_binary': True,
+					'layer': 'schema',
+					'schema_def': 'userDef'
+				}],
+				'name': '',
+				'is_binary': True
+			}
+		},
+		'action': {
+			'method': 'db',
+			'cls': 'dataprocessing.storage.MinioStorage'
+		},
+		'filters': {},
+		'cls': 'crawling.database.mongocrawler.MongoIterator',
+		'rules_id': 'bcaa3dc2774c38df46d8fd31d24820c3'
+	}
+}
+
+mysql = {
+        'identity': '0e5a5064-e95d-40a2-b064-8842c0089f87',
+        'scheduler': {
+            'date_time': '',
+            'op': 'start'
+        },
+        'cls': 'strategy.Discovery',
+        'strategy': {
+            'cls': 'crawling.database.dbproxy.dbpcrawler.DBProxyIterator',
+            'iterator': {
+                'auth': {
+                    'dbtype': 'mysql',
+                    'username': 'root',
+                    'password': 'root',
+                    'url': 'jdbc:mysql://192.168.37.103:3306/'
+                },
+                'resources': {
+                    'name': '',
+                    'children': [
+                        {
+                            'name': 'liut',
+                            'layer': 'schema',
+                            'schema_def': 'userDef',
+                            'children': [
+                                {'name': 'liut_blob', 'layer': 'table', 'children': []}
+                            ]
+                        }
+                    ]
+                }
+            },
+            'filters': {
+
+            },
+            'action': {
+                'cls': 'dataprocessing.storage.MinioStorage',
+                'method': 'db'
+            }
+        }
+    }
+
+
+sftp  = {
+    'identity': '0e5a5064-e95d-40a2-b064-8842c0089-sftp',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+    },
+    'cls': 'strategy.Discovery',
+    'strategy': {
+        'cls': 'crawling.files.sftpcrawler.SFtpIterator',
+        'rules_id': '0e5a5064-e95d-40a2-b064-8842c0089',
+        'iterator': {
+            'auth': {
+                'username': 'root',
+                'password': '123456',
+				'port': 22,
+                'domain':'',
+                'ip': '192.190.10.120'
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': '/opt/Spinfo/config'},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+
+
+imap_1  = {
+    'identity': '0e5a5064-e95d-40a2-b064-8842c0089-imap',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+    },
+    'cls': 'strategy.Discovery',
+    'strategy': {
+        'cls': 'crawling.files.imapcrawler.ImapIterator',
+        'iterator': {
+            'auth': {
+                'server': 'imap.qq.com',
+                'username': '',
+                'password': '',
+                'port': 143
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': 'INBOX'},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+
+pop3_1  = {
+    'identity': '0e5a5064-e95d-40a2-b064-8842c0089-pop3',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+    },
+    'cls': 'strategy.Discovery',
+    'strategy': {
+        'cls': 'crawling.files.pop3crawler.Pop3Iterator',
+        'iterator': {
+            'auth': {
+                'server': 'pop.qq.com',
+                'username': '',
+                'password': '',
+                'accounts':{
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                    'fuckyou@xxx.com':'password',
+                }
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': 'INBOX'},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+
+lotus_email  = {
+    'identity': '0e5a5064-e95d-40a2-b064-8842c0089-email',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+    },
+    'cls': 'strategy.debug.Discovery',
+    'strategy': {
+        'cls': 'crawling.files.lotuscrawler.LotusIterator',
+        'rules_id': '0e5a5064-e95d-40a2-b064-8842c0089',
+        'iterator': {
+            'auth': {
+                'host': '192.168.37.73',
+                'port': 63148,
+                'username': 'administrator',
+                'password': 'Spinfo0123'
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': 'mail\jiaoxl'},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+
+
+lotus_file  = {
+    'identity': '0e5a5064-e95d-40a2-b064-8842c0089-lotusfile',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+    },
+    'cls': 'strategy.Discovery',
+    'strategy': {
+        'cls': 'crawling.files.lotuscrawler.LotusIterator',
+        'rules_id': '0e5a5064-e95d-40a2-b064-8842c0088',
+        'iterator': {
+            'auth': {
+                'host': '192.168.37.73',
+                'port': 63148,
+                'username': 'administrator',
+                'password': 'Spinfo0123',
+                'lotus_type': 'document'
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': '192.168.37.73#####catalog.nsf#####($replicaID)#####catalog路径'},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+
+louts1 = {
+	'scheduler': {
+		'op': 'start'
+	},
+	'identity': '11111111111111112222222222222223333333333',
+	'cls': 'strategy.Discovery',
+	'strategy': {
+		'iterator': {
+			'auth': {
+				'password': 'Spinfo0123',
+				'port': '63148',
+				'host': '192.168.37.73',
+				'username': 'administrator',
+                'lotus_type': 'document'
+			},
+			'resources': {
+				'children': [{
+					'name': '192.168.37.73#####catalog.nsf#####($replicaID)#####catalog路径'
+				}],
+				'name': ''
+			}
+		},
+		'action': {
+			'method': 'file',
+			'cls': 'dataprocessing.storage.MinioStorage'
+		},
+		'cls': 'crawling.files.lotuscrawler.LotusIterator',
+		'filters': {
+			'kwargs': {},
+			'position': 'pre'
+		},
+		'rules_id': '96611417f849f089fe8cebd02b4043c2'
+	}
+}
+
+
+sharepoint  = {
+    'identity': '0e5a5064-e95d-40a2-b064-8842c0089-sharepoint',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+    },
+    'cls': 'strategy.Discovery',
+    'strategy': {
+        'cls': 'crawling.files.sharepointcrawler.SharePointIterator',
+        'rules_id': '0e5a5064-e95d-40a2-b064-0009999',
+        'iterator': {
+            'auth': {
+                'share_point_site': 'https://fengx.sharepoint.com/',
+                'version': '365',
+                'username': 'fengx@fengx.onmicrosoft.com',
+                'password': 'Python0618',
+                'site_url': 'https://fengx.sharepoint.com/sites/site2'
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': 'Shared Documents\\test'},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+
+ftps  = {
+    'identity': '0e5a5064-e95d-40a2-b064-8842c0089f87-ftps',
+    'scheduler': {
+        "date_time":"",
+        "op":"start"
+    },
+    'cls': 'strategy.debug.Discovery',
+    'strategy': {
+        'cls': 'crawling.files.ftpscrawler.FtpsIterator',
+        'rules_id':'0e5a5064-e95d-40a2-b064-8842c0089f87',
+        'iterator': {
+            'auth': {
+                'username': 'root',
+                'password': '123',
+                'ip': '192.190.10.102',
+                'port_p': True
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': ''},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}
+
+mongo_yun ={
+	'scheduler': {
+		'op': 'start'
+	},
+	'identity': '135c923a6c134312b9305bf6d37a1c32',
+	'cls': 'strategy.debug.Discovery',
+	'strategy': {
+		'iterator': {
+			'auth': {
+				'password': 'Spinfo0123',
+				'port': '27017',
+				'ip': '123.206.22.126',
+				'username': 'mongouser'
+			},
+			'resources': {
+				'children': [{
+					'children': [],
+					'name': '132b_character',
+					'is_binary': True,
+					'layer': 'schema',
+					'schema_def': 'userDef'
+				}],
+				'name': '',
+				'is_binary': True
+			}
+		},
+		'action': {
+			'method': 'db',
+			'cls': 'dataprocessing.storage.MinioStorage'
+		},
+		'filters': {},
+		'cls': 'crawling.database.mongocrawler.MongoIterator',
+		'rules_id': '59b5ec199be1428647cf026b21ab0b9d'
+	}
+}
+
+
+ftp_win  = {
+	'scheduler': {
+		'op': 'start'
+	},
+	'identity': '86a98341bbb7462c9845c8333c35569f',
+	'cls': 'strategy.debug.Discovery',
+	'strategy': {
+		'iterator': {
+			'auth': {
+				'password': '',
+				'port': '8021',
+				'ip': '192.190.10.102',
+				'username': 'anonymous',
+                'encoding': 'gbk'
+			},
+			'resources': {
+				'children': [{
+					'comments': '',
+					'isReadOnly': False,
+					'create_time': '20220830103541',
+					'isSpecial': True,
+					'children': [],
+					'last_attr_change_time': '20220830103541',
+					'name': '',
+					'last_access_time': '20220830103541',
+					'last_write_time': '20220830103541'
+				}],
+				'name': ''
+			}
+		},
+		'action': {
+			'method': 'file',
+			'cls': 'dataprocessing.storage.MinioStorage'
+		},
+		'cls': 'crawling.files.ftpcrawler.FtpIterator',
+		'filters': {
+			'kwargs': {},
+			'position': 'pre'
+		},
+		'rules_id': 'd2a1d5369cc2ac2fa7cda5af8366b31a'
+	}
+}
+
+
+
+email_test1 = {
+	"scheduler": {
+		"op": "start"
+	},
+	"identity": "c70147c53af34ba5b7c14c6eecb8583d",
+	"cls": "strategy.debug.Discovery",
+	"strategy": {
+		"iterator": {
+			"auth": {
+				"port": "143",
+				"host": "imap.qq.com",
+				"accounts": {
+					"872383569@qq.com": "detgyxuqfmahbdac"
+				},
+				"ssl_wrap": False
+			},
+			"resources": {
+				"children": [{
+					"children": [],
+					"name": "872383569@qq.com"
+				}],
+				"name": ""
+			}
+		},
+		"action": {
+			"method": "file",
+			"cls": "dataprocessing.storage.MinioStorage"
+		},
+		"cls": "crawling.files.imapcrawler.MultiIMAPIterator",
+		"filters": {},
+		"rules_id": "c3174a46a765266b04c047cc26657644"
+	}
+}
+
+
+linux2 = {
+    'identity': '0e5a5064-e95d-40a2-b064-8842c008-linux',
+    'scheduler': {
+        'date_time': '',
+        'op': 'start'
+    },
+    'cls': 'strategy.debug.Discovery',
+    'strategy': {
+        'cls': 'crawling.files.sftpcrawler.SFtpIterator',
+        'rules_id': '0e5a5064-e95d-40a2-b064-8842c008',
+        'iterator': {
+            'auth': {
+                'username': 'root',
+                'password': '123456',
+                'port': 22,
+                'host': '192.190.10.120'
+            },
+            'resources': {
+                'name': '',
+                'children': [
+                    {'children': [], 'comments': '', 'isSpecial': False, 'name': '/tmp/data'},
+                ]
+            }
+        },
+        'filters': {
+            'time': '',
+            'size': '',
+            'type': '',
+        },
+        'action': {
+            'cls': 'dataprocessing.storage.MinioStorage',
+            'method':'file'
+        }
+    }
+}

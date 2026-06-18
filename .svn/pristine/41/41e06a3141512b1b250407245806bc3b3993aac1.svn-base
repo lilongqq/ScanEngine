@@ -1,0 +1,92 @@
+{
+    "scheduler": {
+        "op": "start"
+    },
+    "identity": "20039457780f491baed159897ae266bc",
+    "cls": "strategy.ShanxiOA",
+    "strategy": {
+        "iterator": {
+            "auth": {
+                "password": "root",
+                "dbtype": "mysql",
+                "url": "jdbc:mysql://192.168.37.103:3306/",
+                "username": "root"
+            },
+            "resources": {
+                "children": [
+                    {
+                        "path": "bzcp",
+                        "children": [
+                            {
+                                "path": "bzcp/追加_windows绝对路径",
+                                "children": [
+                                    {
+                                        "isAutoIncrement": "NO",
+                                        "isNullable": "YES",
+                                        "isPath": "NO",
+                                        "name": "ID",
+                                        "typeName": "VARCHAR",
+                                        "remark": "",
+                                        "classification": "STRING",
+                                        "type": 12,
+                                        "userPk": "YES",
+                                        "layer": "column"
+                                    },
+                                    {   "orderBy": "YES",
+                                        "isAutoIncrement": "NO",
+                                        "isNullable": "YES",
+                                        "isPath": "NO",
+                                        "name": "FILENAME",
+                                        "typeName": "VARCHAR",
+                                        "remark": "",
+                                        "classification": "STRING",
+                                        "type": 12,
+                                        "layer": "column"
+                                    },
+                                    {
+                                        "isAutoIncrement": "NO",
+                                        "is_append": true,
+                                        "auth": {
+                                            "decompress": false
+                                        },
+                                        "isNullable": "YES",
+                                        "isPath": "YES",
+                                        "name": "PATH",
+                                        "typeName": "VARCHAR",
+                                        "remark": "",
+                                        "cls": "crawling.files.httpcrawler.HttpGetIterator",
+                                        "classification": "STRING",
+                                        "type": 12,
+                                        "layer": "column"
+                                    }
+                                ],
+                                "name": "追加_windows绝对路径",
+                                "is_binary": true,
+                                "schema_name": "bzcp",
+                                "table_name": "追加_windows绝对路径",
+                                "layer": "table"
+                            }
+                        ],
+                        "name": "bzcp",
+                        "is_binary": true,
+                        "schema_name": "bzcp",
+                        "layer": "schema",
+                        "schema_def": "userDef"
+                    }
+                ],
+                "name": "",
+                "is_binary": true
+            }
+        },
+        "action": {
+            "method": "file",
+            "cls": "dataprocessing.storage.MinioStorage"
+        },
+        "url_enabled": "0",
+        "filters": {},
+        "cls": "crawling.files.oa.ShanxiOAIterator",
+        "rules_id": "09c1e716-6f71-38dc-b7fb-d6003fec59ed",
+        "url_distinguish_count": "",
+        "url_distinguish_type": ""
+    }
+}

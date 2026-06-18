@@ -1,0 +1,20 @@
+Package: unrar
+Architecture: arm64
+Version: 1:6.2.6-1+deb12u1
+Priority: optional
+Section: non-free/utils
+Source: unrar-nonfree
+Maintainer: UnRar maintainer team <team+unrar-nonfree@tracker.debian.org>
+Installed-Size: 353
+Depends: libc6 (>= 2.34), libgcc-s1 (>= 3.3.1), libstdc++6 (>= 11)
+Filename: pool/non-free/unrar_6.2.6-1+deb12u1_arm64.deb
+Size: 133800
+MD5sum: 91e93f31bced71e19d131dd8f8f92b3f
+SHA1: d95fbe6f11136eec7ea1f7cb0227507ef88e3d51
+SHA256: c0909ff895c047346dde0659e430df3f2165ce50897e420fbab30e91d5cebed9
+SHA512: c3fc1a08fb1466a10dd307885c208cf41ab46f85b30eb7dfa73d4c8c16f13493e94e1532c86cb141de1b48f609f00b8ab7c6842fd8156b73722e2a502a47dc97
+Homepage: https://www.rarlab.com/
+Description: Unarchiver for .rar files (non-free version)
+ Unrar can extract files from .rar archives. If you want to create .rar
+ archives, install package rar.
+

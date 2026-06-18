@@ -1,0 +1,7 @@
+cls: crawling.database.hbaserestcrawler.HBaseRest
+auth:
+  url: http://192.168.38.242:8080
+node:
+  name: ''
+  children: []
+

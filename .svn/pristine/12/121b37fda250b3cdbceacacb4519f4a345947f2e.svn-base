@@ -1,0 +1,45 @@
+{
+    "scheduler": {
+        "op": "start"
+    },
+    "identity": "bf98e06c8be14132a2c1626ba4b18742",
+    "cls": "strategy.Discovery",
+    "strategy": {
+        "cls": "IGUO",
+        "iterator": {
+            "auth": {
+                "url": "https://qyapi.weixin.qq.com",
+                "secret": "vQT_03RDVA3uE6JDASDASDAiXUvccqV8mDgLdLI",
+                "corpid": "wwabcddzxdkrsdv",
+                "pkey": "the rsa private key content"
+            },
+            "resources": {
+                "name": "",
+                "children": [
+                    {
+                        "type": "file",
+                        "start_time": "2024-01-09T13:49:29",
+                        "end_time": "2025-01-09T13:49:29",
+                        "feature": 90000036
+                    },
+                    {
+                        "type": "file",
+                        "start_time": "2024-01-09T13:49:29",
+                        "end_time": "2025-01-09T13:49:29",
+                        "feature": 90000037
+                    }
+                ]
+            }
+        },
+        "action": {
+            "method": "file",
+            "url_enabled": "0",
+            "cls": "dataprocessing.storage.MinioStorage",
+            "url_distinguish_count": "",
+            "url_distinguish_type": ""
+        },
+        "filters": {},
+        "rules_id": "e51a1bc4e32f3377afa8a319e8c1472e"
+        
+    }
+}

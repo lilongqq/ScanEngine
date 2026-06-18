@@ -1,0 +1,44 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Origin: Debian
+Label: Debian
+Suite: oldstable
+Version: 12.12
+Codename: bookworm
+Architectures: amd64 arm64
+Components: non-free
+Description: Debian 12.12 Released 06 September 2025
+Date: Thu, 30 Oct 2025 07:08:58 +0000
+MD5Sum:
+ a16f04866db95e7a7b9a8aa4aec4ea99               38 Release
+ bda145b1c4831c5a9ba3f4ce5f1de18f              852 non-free/binary-amd64/Packages
+ efa681e5790fe2294ccc6691628df2e1              852 non-free/binary-arm64/Packages
+SHA1:
+ 2dc492e7a7bc22a1997e64b5d140c53f189d7281               38 Release
+ 14037e280a412e03eb1e21025884477d9518750c              852 non-free/binary-amd64/Packages
+ d7317888b2a4cbcb24a4da604eea023925bf5f88              852 non-free/binary-arm64/Packages
+SHA256:
+ ba6b4df8520b11e7b3dfc2a77792de2f8ba00015f72e152a57b97be92d263645               38 Release
+ 20b84b40fcbd3cfabe6329039e47b8916345179ac13fc5612f1a3e7c79cff315              852 non-free/binary-amd64/Packages
+ 792ac0454dd182c89e5faa7537d124dcfa2180a5a7751894b742d010896630f5              852 non-free/binary-arm64/Packages
+SHA512:
+ b847948add2293aeaac226be257e8412619d92b5704e8172d0282c07daa8387f91eef4d2c865b209e65c3b7feed22de330f24785d8569f591dcb6428c9eed41d               38 Release
+ 944d344db5e96f53db8a48e6bb67b5063292276009e9ffcc0fa7daeb1dcb4cb0add8dabe4d1f0232ea8701edbb3de75bfe0e2595be6f57a13cd2d4ad68a6b362              852 non-free/binary-amd64/Packages
+ 3a5946404802a7bc5668c4927775c664a29111717bd031a286af561d6b1168fee16bae3a8504e6c0d720aa02a1e3a132df49cdff2860f6f9b3bd9694c9e40f49              852 non-free/binary-arm64/Packages
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEtR0TqVuwqZ6P9vERvVn4IoqjEpYFAmkEVXAACgkQvVn4Ioqj
+EpaspQ/+Jae0IhAYY+C+vnOyKEjK+ZZRWxoyhsqW+SLtKSVyNTDmQjQZ4FraUcmm
+OhE4U952CYV7iPXJm+WIZxOY2KmdpAcS3kzaORCEJx+A81Nx0Omx6shNy2f6+nUr
+OHlccPXw3e77uIBnW+nzi0HR0rUjDJq45/lDcVpeBGJhizLkuMmHTKV/1IArBDQK
+bMGU7PnFiacZeBblfcX0L/aATPRotYi/yJ1CWXfOxFja/+GiT5zUz4hSbAOryUIr
+HWuKeSMrYSMQrGt50xg6MDzqV78OlJu9RFTsTRJXOn9TjEWtKR51cnJFtsmT5bcj
+vf27iq1q56Ek0pIYSX1gDFos4YUe2p31Or4kzIVqDg26M/GKm6EUtqnJQIPSNZhw
+YS/Ifd/FaTse/xOBTwbdWRveVtG8gu6WACavrVyxgQyJYzwKyScjcd61aQBzy0hB
+6gJuY4Z15U1AcBcZYaP8ZewNT4543H/34swdPO0rkUl1geyEUAvTaoDO9/CeoL7d
+vgg2OquuUJ+DVq1FBWXAQtP7sdoKeV7jlcCMLOEbw4tXHFeL/VMslLfqT82mw67w
+c30jTenTaMgrNUtIvfR9CVnmFzBe4bxi8BPQB3K7QgFManSHN0hrI2T3QxYeXzLD
+PFCpyUEAGnjA0O2CeIyyfbmoBfeca95YRVKDd5b1ooko8ry3S98=
+=DTNz
+-----END PGP SIGNATURE-----

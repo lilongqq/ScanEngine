@@ -1,0 +1,71 @@
+
+identity: e9a597bd83794415bdac6f3f14161b6a #任务id
+scheduler: #调度器参数
+  op: start
+cls: strategy.Discovery #执行策略标识路径
+strategy: #执行策略所需要的参数
+  cls: crawling.files.smbcrawler.SMBIterator #迭代数据协议的标识路径
+  iterator: # 迭代器需要的参数，包含auth，和resources
+    auth:  # 认证信息，此为文件共享smb协议需要的认证信息
+      host: 192.190.40.159
+      is_direct_tcp: true
+      password: Spinfo0123
+      port: '445'
+      remote_name: ''
+      use_ntlm_v2: true
+      username: smile
+    resources:  #需要扫描勾选的资源描述，采取和服务器资源相同的目录结构
+      name: ''  #所以存储协议有一个最外层默认的根节点
+      children: #children是一个列表，代表在节点下还有子节点
+      - name: testshare_all #这是节点的对应信息，这是一个共享目录，名称为testshare_all
+        comments: ''        #这些都是从协议里获取到的文件或目录属性，不同协议不固定
+        isSpecial: false    #是否是特殊设备
+        path: testshare_all #这是目录的路径，因为是最上层目录所以和name相同
+        type: file          #用于区分 数据库二进制，数据库字符数据，和文件，pe用
+        children: #这个代表testshare_all目录下的节点集合
+        - name: DBS-S # testshare_all目录下的DBS-S节点，也是一个目录
+          create_time: 1594889317.8814116 #目录的创建时间
+          isReadOnly: false     #是否是个特殊的目录
+          last_access_time: 1700295517.386557 #目录的上次访问时间
+          last_attr_change_time: 1699003404.563418 #目录的上次属性权限更改时间
+          last_write_time: 1699003404.563418 #目录的上次修改时间，说明目录里的文件有修改
+          path: testshare_all/DBS-S #这个就是一个节点对于协议的绝对路径   
+          type: file
+          children:
+          - name: 11内嵌OCR识别_68
+            path: testshare_all/DBS-S/11内嵌OCR识别_68
+            type: file
+            create_time: 1499848225.3331375
+            isReadOnly: false
+            last_access_time: 1700290595.801397
+            last_attr_change_time: 1695694433.3449972
+            last_write_time: 1695694433.3449972
+            children:
+            - name: office内嵌图片16
+              children: []
+              create_time: 1690336637.0688963
+              isReadOnly: false
+              last_access_time: 1700290595.8023963
+              last_attr_change_time: 1695694279.6539257
+              last_write_time: 1695694279.6539257
+              path: testshare_all/DBS-S/11内嵌OCR识别_68/office内>嵌图片16
+              type: file
+            - name: PDF内嵌图片4
+              children: []
+              create_time: 1690336638.039341
+              isReadOnly: false
+              last_access_time: 1700290595.8023963
+              last_attr_change_time: 1695694303.1984444
+              last_write_time: 1695694303.1984444
+              path: testshare_all/DBS-S/11内嵌OCR识别_68/PDF内嵌图片4
+              type: file
+  filters:  #这是文件的过滤器设置
+    kwargs: {}
+    position: pre
+  action:   #这是文件的执行设置
+    cls: dataprocessing.storage.MinioStorage
+    method: file
+  rules_id: dc6770e8-4443-3f50-b7af-de00fa281ee9 #这个是规则id，pe使用，对应pe的一组规则，当规则变化时，id会产生变化
+  url_distinguish_count: '' #url识别相关参数
+  url_distinguish_type: ''  #url识别相关参数
+  url_enabled: '0' #是否启用url识别

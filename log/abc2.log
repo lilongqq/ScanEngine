@@ -1,0 +1,87 @@
+oot@e592feac98be:/opt# 
+root@e592feac98be:/opt# python3 -c "
+import logging
+logging.basicConfig(level=logging.WARNING)
+import shareplum.site as _sp_site
+_orig = _sp_site._Site2007.get_site
+def _safe(self):
+    try: return _orig(self)
+    except: return {}
+_sp_site._Site2007.get_site = _safe
+
+from shareplum import Site
+from shareplum.site import Version
+from requests_ntlm import HttpNtlmAuth
+auth = HttpNtlmAuth('spinfo-sp.com\\\\administrator', 'Spinfo0123')
+site = Site('http://192.168.37.72:45678', version=Version.v2010, auth=auth, verify_ssl=False)
+
+lst = site.List('共享文档')
+print('=== 可用字段 ===')
+for k, v in lst._disp_cols.items():
+    print(k, '->', v)
+"
+
+=== 可用字段 ===
+ID -> {'name': 'ID', 'type': 'Counter'}
+内容类型 ID -> {'name': 'ContentTypeId', 'type': 'ContentTypeId'}
+内容类型 -> {'name': 'ContentType', 'type': 'Computed'}
+创建时间 -> {'name': 'Created_x0020_Date', 'type': 'Lookup'}
+创建者 -> {'name': 'Author', 'type': 'User'}
+修改时间 -> {'name': 'Last_x0020_Modified', 'type': 'Lookup'}
+修改者 -> {'name': 'Editor', 'type': 'User'}
+具有复制目标 -> {'name': '_HasCopyDestinations', 'type': 'Boolean'}
+复制源 -> {'name': '_CopySource', 'type': 'Text'}
+审批状态 -> {'name': '_ModerationStatus', 'type': 'ModStat'}
+审批者注释 -> {'name': '_ModerationComments', 'type': 'Note'}
+URL 路径 -> {'name': 'FileRef', 'type': 'Lookup'}
+路径 -> {'name': 'FileDirRef', 'type': 'Lookup'}
+文件大小 -> {'name': 'FileSizeDisplay', 'type': 'Computed'}
+项目类型 -> {'name': 'FSObjType', 'type': 'Lookup'}
+排序类型 -> {'name': 'SortBehavior', 'type': 'Lookup'}
+有效权限掩码 -> {'name': 'PermMask', 'type': 'Computed'}
+签出该项目的用户的 ID -> {'name': 'CheckedOutUserId', 'type': 'Lookup'}
+已签出到本地 -> {'name': 'IsCheckedoutToLocal', 'type': 'Lookup'}
+签出对象 -> {'name': 'LinkCheckedOutTitle', 'type': 'Computed'}
+名称 -> {'name': 'BaseName', 'type': 'Computed'}
+唯一 ID -> {'name': 'UniqueId', 'type': 'Lookup'}
+客户端 ID -> {'name': 'SyncClientId', 'type': 'Lookup'}
+ProgId -> {'name': 'ProgId', 'type': 'Lookup'}
+ScopeId -> {'name': 'ScopeId', 'type': 'Lookup'}
+病毒状态 -> {'name': 'VirusStatus', 'type': 'Lookup'}
+签入注释 -> {'name': '_CheckinComment', 'type': 'Lookup'}
+文档修改者 -> {'name': 'Modified_x0020_By', 'type': 'Text'}
+文档创建者 -> {'name': 'Created_x0020_By', 'type': 'Text'}
+文件类型 -> {'name': 'File_x0020_Type', 'type': 'Text'}
+HTML 文件类型 -> {'name': 'HTML_x0020_File_x0020_Type', 'type': 'Text'}
+源 URL -> {'name': '_SourceUrl', 'type': 'Text'}
+共享文件索引 -> {'name': '_SharedFileIndex', 'type': 'Text'}
+编辑菜单表格开始 -> {'name': '_EditMenuTableStart2', 'type': 'Computed'}
+编辑菜单表格结束 -> {'name': '_EditMenuTableEnd', 'type': 'Computed'}
+类型 -> {'name': 'DocIcon', 'type': 'Computed'}
+相对于服务器的 URL -> {'name': 'ServerUrl', 'type': 'Computed'}
+编码形式的绝对 URL -> {'name': 'EncodedAbsUrl', 'type': 'Computed'}
+属性包 -> {'name': 'MetaInfo', 'type': 'Lookup'}
+级别 -> {'name': '_Level', 'type': 'Integer'}
+是当前版本 -> {'name': '_IsCurrentVersion', 'type': 'Boolean'}
+子项目计数 -> {'name': 'ItemChildCount', 'type': 'Lookup'}
+子文件夹计数 -> {'name': 'FolderChildCount', 'type': 'Lookup'}
+选择 -> {'name': 'SelectFilename', 'type': 'Computed'}
+编辑 -> {'name': 'Edit', 'type': 'Computed'}
+owshiddenversion -> {'name': 'owshiddenversion', 'type': 'Integer'}
+UI 版本 -> {'name': '_UIVersion', 'type': 'Integer'}
+版本 -> {'name': '_UIVersionString', 'type': 'Text'}
+实例 ID -> {'name': 'InstanceID', 'type': 'Integer'}
+排序 -> {'name': 'Order', 'type': 'Number'}
+GUID -> {'name': 'GUID', 'type': 'Guid'}
+工作流版本 -> {'name': 'WorkflowVersion', 'type': 'Integer'}
+工作流实例 ID -> {'name': 'WorkflowInstanceID', 'type': 'Guid'}
+源版本(转换文档) -> {'name': 'ParentVersionString', 'type': 'Lookup'}
+源名称(转换文档) -> {'name': 'ParentLeafName', 'type': 'Lookup'}
+文档并发数 -> {'name': 'DocConcurrencyNumber', 'type': 'Lookup'}
+标题 -> {'name': 'Title', 'type': 'Text'}
+模板链接 -> {'name': 'TemplateUrl', 'type': 'Text'}
+HTML 文件链接 -> {'name': 'xd_ProgID', 'type': 'Text'}
+已签名 -> {'name': 'xd_Signature', 'type': 'Boolean'}
+合并 -> {'name': 'Combine', 'type': 'Computed'}
+重新链接 -> {'name': 'RepairDocument', 'type': 'Computed'}
+

@@ -1,0 +1,1048 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import io
+import logging
+import uuid
+import json
+import re
+import traceback
+from collections import UserDict
+import os.path
+import hashlib
+from typing import Optional
+from collections.abc import Mapping
+from common import classmap
+from common.functools import get_class, boolean
+from functools import partial, cached_property, singledispatchmethod
+from thrift.protocol import TBinaryProtocol
+from thrift.transport import TSocket, TTransport
+from .service import DatabaseService
+from .struct.ttypes import ClientDataPkg
+from common.globals import Variables
+from common.conntool import alive_check
+from crawling.interface import Iterator, Client
+
+
+class DBProxyError(Exception):
+
+    def __init__(self, success, message):
+        self.success = success
+        self.message = message
+
+    def __str__(self):
+        return "success is {success}\nmessage is {message}".format(success=self.success, message=self.message)
+
+
+class DBProxyDict(UserDict):
+
+    def __getitem__(self, item):
+        if item == 'diff':
+            return self.data.get('md5')
+        else:
+            return self.data[item]
+
+    def __contains__(self, item):
+        if item == 'diff':
+            return 'md5' in self.data
+        else:
+            return item in self.data
+
+
+class QueryDict(UserDict):
+
+    @cached_property
+    def value(self):
+        return json.dumps(self.data, ensure_ascii=False).encode('utf-8')
+
+    def __len__(self):
+        return len(self.value)
+
+
+class DBProxyTools(object):
+
+    @staticmethod
+    def get_index_column(columns):
+        for column in columns:
+            if column.get('pkColumn') == 'YES':
+                return column
+            elif column.get('userPk') == 'YES':
+                return column
+        else:
+            return False
+
+    @staticmethod
+    def get_order_column(columns):
+        for column in columns:
+            if boolean(column.get('orderBy')):
+                return column
+        else:
+            return False
+
+    @staticmethod
+    def get_append_columns(columns):
+        append_columns = list()
+        for column in columns:
+            if boolean(column.get('is_append')):
+                append_columns.append(column)
+        return append_columns
+
+    @staticmethod
+    def get_query_columns(columns):
+        query_columns = list()
+        for column in columns:
+            if column['classification'].upper() == 'BINARY':
+                continue
+            elif column['classification'].upper() == 'OTHER':
+                continue
+            else:
+                query_columns.append(column)
+        return query_columns
+
+    @staticmethod
+    def query_binary_columns(columns):
+        query_columns = list()
+        binary_columns = list()
+        for column in columns:
+            if column['classification'].upper() == 'BINARY':
+                binary_columns.append(column)
+            elif column['classification'].upper() == 'OTHER':
+                continue
+            else:
+                query_columns.append(column)
+        return query_columns, binary_columns
+
+    @staticmethod
+    def get_schema_table_name(path):
+        path_tuple = path.split('/', 1)
+        if len(path_tuple) == 1:
+            schema_name, = path_tuple
+            table_name = ''
+            return schema_name, table_name
+        elif len(path_tuple) == 2:
+            schema_name, table_name = path_tuple
+            return schema_name, table_name
+
+
+class FormatPath(object):
+
+    @staticmethod
+    def windows(path):
+        if re.match(r'^[A-Z]:\\', path):
+            return path.replace(':', '$', 1).replace('\\', '/')
+        else:
+            return path.replace('\\', '/')
+
+    @staticmethod
+    def join(prefix, path):
+        return os.path.join(prefix, path.lstrip('/'))
+
+    @staticmethod
+    def relpath(prefix, path):
+        return path.removeprefix(prefix)
+
+    # @staticmethod
+    # def relpath(start, path):
+    #     return os.path.relpath(path, start)
+
+    # @staticmethod
+    # def removeprefix(prefix, path):
+    #     return path.removeprefix(prefix)
+
+
+class DBProxy(Client):
+
+    def __init__(self,
+                 dbtype,
+                 username,
+                 password,
+                 url,
+                 extra: Optional[Mapping] = None
+                 ):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.variables = Variables()
+        self.socket = self.get_socket(**self.variables.dbp['socket'])
+        self.transport = TTransport.TBufferedTransport(self.socket)
+        self.transport.open()
+        self.protocol = TBinaryProtocol.TBinaryProtocol(self.transport)
+        self.client = DatabaseService.Client(self.protocol)
+        self.client_id = uuid.uuid4().hex
+        self.dbtype = dbtype
+        self.username = username
+        self.password = password
+        self.url = url
+        self.extra = extra
+        self.__dict__.update(self.login().__dict__)
+
+    @staticmethod
+    def get_socket(ip, port, timeout):
+        socket = TSocket.TSocket(ip, port)
+        socket.setTimeout(timeout)
+        return socket
+
+    @property
+    def db_info(self):
+        return {
+            'message': getattr(self, 'message'),
+            'productName': getattr(self, 'productName'),
+            'productVersion': getattr(self, 'productVersion'),
+            'readable': getattr(self, 'readable')
+        }
+
+    def login(self):
+        parameters = dict()
+        parameters['clientId'] = self.client_id
+        data = dict()
+        data['dbtype'] = self.dbtype
+        data['user'] = self.username
+        data['password'] = self.password
+        data['url'] = self.url
+        if self.extra:
+            data['extra'] = self.extra
+        parameters['data'] = data
+        result = self.client.login(
+            ClientDataPkg(
+                json.dumps(parameters, ensure_ascii=False, indent=4)
+            )
+        )
+        if result.success:
+            return result
+        else:
+            self.transport.close()
+            raise DBProxyError(result.success, result.message)
+
+    def logout(self):
+        parameters = dict()
+        parameters['clientId'] = self.client_id
+        result = self.client.logout(
+            ClientDataPkg(
+                json.dumps(parameters, ensure_ascii=False, indent=4)
+            )
+        )
+        if result.success:
+            return result.data
+        else:
+            self.transport.close()
+            raise DBProxyError(result.success, result.message)
+
+    def schemas(self):
+        parameters = dict()
+        parameters['clientId'] = self.client_id
+        result = self.client.schemas(
+            ClientDataPkg(
+                json.dumps(parameters, ensure_ascii=False, indent=4)
+            )
+        )
+        if result.success:
+            return result.data
+        else:
+            self.logout()
+            self.transport.close()
+            raise DBProxyError(result.success, result.message)
+
+    def tables(self, schema_name):
+        parameters = dict()
+        parameters['clientId'] = self.client_id
+        data = dict()
+        data['schemaName'] = schema_name
+        parameters['data'] = data
+        result = self.client.tables(
+            ClientDataPkg(
+                json.dumps(parameters, ensure_ascii=False, indent=4)
+            )
+        )
+        if result.success:
+            return result.data
+        else:
+            self.logout()
+            self.transport.close()
+            raise DBProxyError(result.success, result.message)
+
+    def column(self, schema_name, table_name):
+        parameters = dict()
+        parameters['clientId'] = self.client_id
+        data = dict()
+        data['schemaName'] = schema_name
+        data['tableName'] = table_name
+        parameters['data'] = data
+        result = self.client.column(
+            ClientDataPkg(
+                json.dumps(parameters, ensure_ascii=False, indent=4)
+            )
+        )
+        if result.success:
+            return result.data
+        else:
+            self.logout()
+            self.transport.close()
+            raise DBProxyError(result.success, result.message)
+
+    def query(
+            self,
+            schema_name,
+            table_name,
+            fetch_size,
+            start,
+            limit,
+            *args,
+            where: Optional[str] = None
+    ):
+        parameters = dict()
+        parameters['clientId'] = self.client_id
+        data = dict()
+        data['schemaName'] = schema_name
+        data['tableName'] = table_name
+        data['fields'] = ','.join(args)
+        data['fetchSize'] = fetch_size
+        data['start'] = start
+        data['limit'] = limit
+        if where:
+            data['where'] = where
+        parameters['data'] = data
+        result = self.client.query(
+            ClientDataPkg(
+                json.dumps(parameters, ensure_ascii=False, indent=4)
+            )
+        )
+        if result.success:
+            return result.data
+        else:
+            self.logout()
+            self.transport.close()
+            raise DBProxyError(result.success, result.message)
+
+    def preview(self, node: Mapping):
+        view_columns = list()
+        view_rows = list()
+        schema_name = node['schema_name']
+        table_name = node['table_name']
+        if node['children']:
+            columns = node['children']
+        else:
+            columns = self.get_nodes(node)
+        query_columns, binary_columns = DBProxyTools.query_binary_columns(
+            columns
+        )
+        view_columns.extend(query_columns)
+        view_columns.extend(binary_columns)
+        fields = [item['name'] for item in query_columns]
+        limit = node.get('limit', 15)
+        page = self.page(schema_name, table_name, limit, *fields)
+        query_rows = page.rows
+        binary_row = [item['typeName'] for item in binary_columns]
+        for query_row in query_rows:
+            view_row = list()
+            view_row.extend(query_row)
+            view_row.extend(binary_row)
+            view_rows.append(view_row)
+        self.logout()
+        self.close()
+        return {
+            'columns': view_columns,
+            'rows': view_rows
+        }
+
+    def page(
+            self,
+            schema_name,
+            table_name,
+            limit,
+            *args
+    ):
+        parameters = dict()
+        parameters['clientId'] = self.client_id
+        data = dict()
+        data['schemaName'] = schema_name
+        data['tableName'] = table_name
+        data['fields'] = ','.join(args)
+        data['start'] = 0
+        data['limit'] = limit
+        parameters['data'] = data
+        result = self.client.page(
+            ClientDataPkg(
+                json.dumps(parameters, ensure_ascii=False, indent=4)
+            )
+        )
+        if result.success:
+            return result.data
+        else:
+            self.logout()
+            self.transport.close()
+            raise DBProxyError(result.success, result.message)
+
+    def fetch_binary(
+            self,
+            schema_name,
+            table_name,
+            user_pk_column_name,
+            column_name,
+            fetch_size,
+            start,
+            limit):
+        parameters = dict()
+        parameters['clientId'] = self.client_id
+        data = dict()
+        data['schemaName'] = schema_name
+        data['tableName'] = table_name
+        data['fields'] = column_name
+        data['userPk'] = user_pk_column_name
+        data['fetchSize'] = fetch_size
+        data['start'] = start
+        data['limit'] = limit
+        parameters['data'] = data
+        result = self.client.fetchBinary(
+            ClientDataPkg(
+                json.dumps(parameters, ensure_ascii=False, indent=4)
+            )
+        )
+        if result.success:
+            return result.data
+        else:
+            self.logout()
+            self.transport.close()
+            raise DBProxyError(result.success, result.message)
+
+    def trace(
+            self,
+            schema_name,
+            table_name,
+            user_pk_column_name,
+            user_pk_column_value,
+            column_name):
+        parameters = dict()
+        parameters['clientId'] = self.client_id
+        data = dict()
+        data['schemaName'] = schema_name
+        data['tableName'] = table_name
+        data['keyName'] = user_pk_column_name
+        data['keyValue'] = user_pk_column_value
+        data['binaryName'] = column_name
+        parameters['data'] = data
+        result = self.client.trace(
+            ClientDataPkg(
+                json.dumps(parameters, ensure_ascii=False, indent=4)
+            )
+        )
+        if result.success:
+            return result.data
+        else:
+            self.logout()
+            self.transport.close()
+            raise DBProxyError(result.success, result.message)
+
+    def close(self):
+        if self.transport.isOpen():
+            self.logger.info('close')
+            self.transport.close()
+
+    def __bool__(self):
+        return self.transport.isOpen()
+
+    def __del__(self):
+        if self.transport.isOpen():
+            self.logger.info('logout')
+            self.logout()
+            self.logger.info('close')
+            self.transport.close()
+
+    @singledispatchmethod
+    def get_nodes(self, *args, **kwargs):
+        raise NotImplemented
+
+    @get_nodes.register(Mapping)
+    def _(self, node):
+        if 'layer' in node:
+            if node['layer'] == 'schema':
+                return self.get_tables(node)
+            elif node['layer'] == 'table':
+                return self.get_columns(node)
+            else:
+                raise ValueError('layer is illegal')
+        else:
+            if self.dbtype in self.variables.dbp['noschema']:
+                node['schema_name'] = self.dbtype
+                return self.get_tables(node)
+            else:
+                return self.get_schemas(node)
+
+    @get_nodes.register(str)
+    def _(self, path):
+        node = {}
+        if self.dbtype in self.variables.dbp['noschema']:
+            node['schema_name'] = self.dbtype
+            if path:
+                node['table_name'] = path
+                return self.get_columns(node)
+            else:
+                return self.get_tables(node)
+        else:
+            if path:
+                schema_name, table_name = DBProxyTools.get_schema_table_name(
+                    path
+                )
+                if table_name:
+                    node['schema_name'] = schema_name
+                    node['table_name'] = table_name
+                    return self.get_columns(node)
+                else:
+                    node['schema_name'] = schema_name
+                    return self.get_tables(node)
+            else:
+                return self.get_schemas(node)
+
+    def get_columns(self, table):
+        nodes = list()
+        schema_name = table['schema_name']
+        table_name = table['table_name']
+        column_data = self.column(schema_name, table_name)
+        for column in column_data.columns:
+            node = dict()
+            node['name'] = column.name
+            node['layer'] = 'column'
+            node['classification'] = column.classification
+            node['isAutoIncrement'] = column.isAutoIncrement
+            node['isNullable'] = column.isNullable
+            node['isPath'] = column.isPath
+            node['remark'] = column.remark
+            node['type'] = column.type
+            node['typeName'] = column.typeName
+            if column_data.pkColumnName == column.name:
+                node['pkColumn'] = 'YES'
+            if column_data.userPk == column.name:
+                node['userPk'] = 'YES'
+            nodes.append(node)
+        return nodes
+
+    def get_tables(self, schema):
+        nodes = list()
+        schema_name = schema['schema_name']
+        tables_data = self.tables(schema_name)
+        for schema_name, table_names in tables_data.items():
+            for name in table_names:
+                node = dict()
+                node['name'] = name
+                node['path'] = os.path.join(schema_name, name)
+                node['table_name'] = name
+                node['schema_name'] = schema_name
+                node['layer'] = 'table'
+                node['children'] = []
+                if 'total' in schema:
+                    node['total'] = schema['total']
+                if 'is_binary' in schema:
+                    node['is_binary'] = schema['is_binary']
+                if 'is_string' in schema:
+                    node['is_string'] = schema['is_string']
+                nodes.append(node)
+        return nodes
+
+    def get_schemas(self, root):
+        nodes = list()
+        schemas_data = self.schemas()
+        for schema_def, schema_names in schemas_data.items():
+            for name in schema_names:
+                node = dict()
+                node['name'] = name
+                node['path'] = name
+                node['schema_name'] = name
+                node['schema_def'] = schema_def
+                node['layer'] = 'schema'
+                node['children'] = []
+                if 'total' in root:
+                    node['total'] = root['total']
+                if 'is_binary' in root:
+                    node['is_binary'] = root['is_binary']
+                if 'is_string' in root:
+                    node['is_string'] = root['is_string']
+                nodes.append(node)
+        return nodes
+
+    def get_file(self, node):
+        schema_name = node['schemaName']
+        table_name = node['tableName']
+        user_pk_column, column = node['columns']
+        user_pk_column_value, index = node['rows'][0]
+        index = int(index)
+        binary_maps = self.trace(
+            schema_name=schema_name,
+            table_name=table_name,
+            user_pk_column_name=user_pk_column['name'],
+            user_pk_column_value=user_pk_column_value,
+            column_name=column['name']
+        )
+        for binary_map in binary_maps:
+            for k, v in binary_map.items():
+                if len(v) > index:
+                    binary = v[index]
+                    f = io.BytesIO(binary)
+                    return f
+                else:
+                    self.logger.info(
+                        '{} trace error, index out of range'.format(k)
+                    )
+        raise DBProxyError(False, 'trace empty')
+
+
+@alive_check
+class DBProxyBatch(DBProxy):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class DBProxyOne(DBProxy):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class BinaryIterator(Iterator):
+
+    def __init__(self,
+                 auth,
+                 schema_name,
+                 table_name,
+                 index_column,
+                 column,
+                 total=0
+                 ):
+        self.variables = Variables()
+        self.auth = auth
+        self.client = DBProxy(**self.auth)
+        self.schema_name = schema_name
+        self.table_name = table_name
+        self.index_column = index_column
+        self.column = column
+        self.columns = [self.index_column, self.column]
+        self.start = 0
+        self.limit = 1
+        self.fetch_size = 10
+        self.stack = list()
+        self.count = 0
+        self.total = total
+        self.__dict__.update(self.variables.dbp['binary'])
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while True:
+            if len(self.stack) > 0:
+                self.node, data = self.stack.pop()
+                self.node['auth'] = self.auth
+                self.node['cls'] = 'DBProxy'
+                return self.node, partial(self.wrapper_binary, self.node, data)
+            else:
+                if 0 < self.total <= self.start:
+                    raise StopIteration
+                else:
+                    if self.client:
+                        binary_maps = self.client.fetch_binary(
+                            self.schema_name,
+                            self.table_name,
+                            self.index_column['name'],
+                            self.column['name'],
+                            self.fetch_size,
+                            self.start,
+                            self.limit
+                        )
+                    else:
+                        raise StopIteration
+                    self.start += self.limit
+                    count = len(binary_maps)
+                    if count:
+                        self.count += count
+                        if 0 < self.total < self.count:
+                            binary_maps = binary_maps[
+                                :
+                                (self.total - self.count)
+                            ]
+                        for binary_map in binary_maps:
+                            for k, v in binary_map.items():
+                                index = 0
+                                for binary in v:
+                                    if not binary:
+                                        continue
+                                    node = DBProxyDict()
+                                    rows = list()
+                                    rows.append(
+                                        [k, index]
+                                    )
+                                    node['size'] = len(binary)
+                                    node['rows'] = rows
+                                    node['name'] = os.path.join(
+                                        '{index_column_name}-{index_column_value}'.format(
+                                            index_column_name=self.index_column['name'],
+                                            index_column_value=k
+                                        ),
+                                        '{fetch_column_name}-{index}.{fetch_column_type}'.format(
+                                            fetch_column_name=self.column['name'],
+                                            index=index,
+                                            fetch_column_type=self.column['typeName']
+                                        )
+                                    )
+                                    node['path'] = os.path.join(
+                                        self.schema_name,
+                                        self.table_name
+                                    )
+                                    node['type'] = 'binary'
+                                    node['schemaName'] = self.schema_name
+                                    node['tableName'] = self.table_name
+                                    node['columns'] = self.columns
+                                    self.stack.append(
+                                        (node, binary)
+                                    )
+                                    index += 1
+                    else:
+                        raise StopIteration
+
+    @staticmethod
+    def wrapper_binary(node, data):
+        md5 = hashlib.md5()
+        md5.update(data)
+        node['md5'] = md5.hexdigest()
+        return data
+
+
+class QueryIterator(Iterator):
+
+    def __init__(self,
+                 auth,
+                 schema_name,
+                 table_name,
+                 columns,
+                 total=0):
+        self.variables = Variables()
+        self.auth = auth
+        self.client = DBProxy(**self.auth)
+        self.schema_name = schema_name
+        self.table_name = table_name
+        self.columns = columns
+        self.fields = [item['name'] for item in self.columns]
+        self.start = 0
+        self.fetch_size = 1000
+        self.limit = 100
+        self.piece = 1
+        self.stack = list()
+        self.count = 0
+        self.total = total
+        self.row_number = 0
+        self.__dict__.update(self.variables.dbp['string'])
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while True:
+            if len(self.stack) > 0:
+                rows = self.stack.pop()
+                node = DBProxyDict()
+                node['type'] = 'string'
+                node['schemaName'] = self.schema_name
+                node['tableName'] = self.table_name
+                node['columns'] = self.columns
+                node['start'] = self.start
+                node['count'] = len(rows)
+                node['name'] = '{}.rows'.format(self.row_number)
+                node['path'] = os.path.join(
+                    self.schema_name,
+                    self.table_name
+                )
+                self.row_number += len(rows)
+                return node, partial(self.wrapper_rows, node, rows)
+            else:
+                if 0 < self.total <= self.start:
+                    raise StopIteration
+                else:
+                    if self.client:
+                        data = self.client.query(
+                            self.schema_name,
+                            self.table_name,
+                            self.fetch_size,
+                            self.start,
+                            self.limit,
+                            *self.fields
+                        )
+                    else:
+                        raise StopIteration
+                    rows = data.rows
+                    self.start += self.limit
+                    count = len(rows)
+                    if count > 0:
+                        self.count += count
+                        if 0 < self.total < self.count:
+                            rows = rows[:(self.total - self.count)]
+                            count = count + self.total - self.count
+                        start = 0
+                        while start < count:
+                            stop = start + self.piece
+                            if stop < count:
+                                self.stack.append(rows[start:stop])
+                            else:
+                                self.stack.append(rows[start:count])
+                            start = stop
+                        self.stack.reverse()
+                    else:
+                        raise StopIteration
+
+    @staticmethod
+    def wrapper_rows(node, rows):
+        rows = QueryDict(rows=rows)
+        node['size'] = len(rows.value)
+        md5 = hashlib.md5()
+        md5.update(rows.value)
+        node['md5'] = md5.hexdigest()
+        return rows
+
+
+class DBProxyIterator(Iterator):
+
+    def __init__(self, auth, resources):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.auth = auth
+        self.client = DBProxyBatch(**self.auth)
+        self.stack = list()
+        self.stack.append(resources)
+        self.node = dict()
+        self.iterators = list()
+        self.iterator = None
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while True:
+            if self.iterator:
+                try:
+                    node, stream = next(self.iterator)
+                except StopIteration:
+                    self.iterator = None
+                except OSError:
+                    self.logger.error(traceback.format_exc())
+                    self.iterator = None
+                except DBProxyError:
+                    self.logger.error(traceback.format_exc())
+                    self.iterator = None
+                else:
+                    return node, stream
+            if len(self.iterators) > 0:
+                self.iterator = self.iterators.pop()
+            else:
+                while len(self.stack) > 0:
+                    self.node = DBProxyDict(self.stack.pop())
+                    if 'layer' in self.node and self.node['layer'] == 'table':
+                        iterators = self.get_iterators(self.node)
+                        iterators.reverse()
+                        self.iterators.extend(iterators)
+                        break
+                    elif 'children' in self.node:
+                        if self.node['children']:
+                            children = self.node['children']
+                        else:
+                            children = self.get_nodes(self.node)
+                        children.reverse()
+                        self.stack.extend(children)
+                else:
+                    raise StopIteration
+
+    def get_nodes(self, node):
+        nodes = self.client.get_nodes(node)
+        return nodes
+
+    def get_iterators(self, node):
+        iterators = list()
+        if node['children']:
+            columns = node['children']
+        else:
+            columns = self.get_nodes(node)
+        query_columns, binary_columns = DBProxyTools.query_binary_columns(
+            columns
+        )
+        if node.get('is_string', True):
+            kwargs = {
+                'auth': self.auth,
+                'schema_name': node['schema_name'],
+                'table_name': node['table_name'],
+                'columns': query_columns
+            }
+            if 'total' in node:
+                kwargs['total'] = node['total']
+            iterators.append(
+                QueryIterator(**kwargs)
+            )
+        if node.get('is_binary', True):
+            index_column = DBProxyTools.get_index_column(columns)
+            if index_column:
+                for column in binary_columns:
+                    kwargs = {
+                        'auth': self.auth,
+                        'schema_name': node['schema_name'],
+                        'table_name': node['table_name'],
+                        'index_column': index_column,
+                        'column': column
+                    }
+                    if 'total' in node:
+                        kwargs['total'] = node['total']
+                    iterators.append(
+                        BinaryIterator(**kwargs)
+                    )
+        return iterators
+
+
+class QueryAppendIterator(Iterator):
+
+    def __init__(self,
+                 auth,
+                 schema_name,
+                 table_name,
+                 index_column,
+                 column):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.variables = Variables()
+        self.client = DBProxyBatch(**auth)
+        self.schema_name = schema_name
+        self.table_name = table_name
+        self.index_column = index_column
+        self.column = column
+        self.iterator = get_class(
+            classmap.iterator.get(column['cls'])
+        )(column['auth'])
+        self.columns = [self.index_column, self.column]
+        self.fields = [item['name'] for item in self.columns]
+        self.start = 0
+        self.limit = 100
+        self.fetch_size = 1000
+        self.node = dict()
+        self.stack = list()
+        self.format = self.gen_format()
+        self.__dict__.update(self.variables.dbp['string'])
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while True:
+            if self.iterator:
+                try:
+                    node, stream = next(self.iterator)
+                    node.update(self.node)
+                except StopIteration:
+                    self.logger.info('Unexpected Exception')
+                else:
+                    return node, stream
+            elif len(self.stack) > 0:
+                self.node = self.stack.pop()
+                nodes = self.iterator.get_nodes(self.node['format_path'])
+                nodes.reverse()
+                self.iterator.add_nodes(nodes)
+            else:
+                nodes = list()
+                data = self.client.query(
+                    self.schema_name,
+                    self.table_name,
+                    self.fetch_size,
+                    self.start,
+                    self.limit,
+                    *self.fields
+                )
+                rows = data.rows
+                count = len(rows)
+                self.start += self.limit
+                if count > 0:
+                    for row in rows:
+                        path = row[1].strip()
+                        if path and path not in {'/', '', '\\'}:
+                            node = dict()
+                            node['schemaName'] = self.schema_name
+                            node['tableName'] = self.table_name
+                            node['columns'] = self.columns
+                            node['rows'] = [row]
+                            node['format_path'] = self.format(path)
+                            nodes.append(node)
+                    nodes.reverse()
+                    self.stack.extend(nodes)
+                else:
+                    raise StopIteration
+
+    @staticmethod
+    def format_path(formats, path):
+        for fun in formats:
+            path = fun(path)
+        else:
+            return path
+
+    def gen_format(self):
+        formats = list()
+        formats.append(FormatPath.windows)
+        if 'format' in self.column:
+            for k, v in self.column['format'].items():
+                formats.append(
+                    partial(getattr(FormatPath, k), FormatPath.windows(v))
+                )
+        return partial(self.format_path, formats)
+
+
+class DBProxyAppendIterator(Iterator):
+
+    def __init__(self, auth, resources):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.auth = auth
+        self.client = DBProxyBatch(**self.auth)
+        self.stack = list()
+        self.node = dict()
+        self.stack.append(resources)
+        self.iterators = list()
+        self.iterator = None
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while True:
+            if self.iterator:
+                try:
+                    node, stream = next(self.iterator)
+                except StopIteration:
+                    self.iterator = None
+                except OSError:
+                    self.logger.error(traceback.format_exc())
+                    self.iterator = None
+                except DBProxyError:
+                    self.logger.error(traceback.format_exc())
+                    self.iterator = None
+                else:
+                    return node, stream
+            if len(self.iterators) > 0:
+                self.iterator = self.iterators.pop()
+            else:
+                while len(self.stack) > 0:
+                    self.node = self.stack.pop()
+                    if 'layer' in self.node and self.node['layer'] == 'table':
+                        iterators = self.get_iterators(self.node)
+                        iterators.reverse()
+                        self.iterators.extend(iterators)
+                        break
+                    elif 'children' in self.node:
+                        children = self.node['children']
+                        children.reverse()
+                        self.stack.extend(children)
+                else:
+                    raise StopIteration
+
+    def get_iterators(self, node):
+        iterators = list()
+        columns = node['children']
+        index_column = DBProxyTools.get_index_column(columns)
+        append_columns = DBProxyTools.get_append_columns(columns)
+        for column in append_columns:
+            kwargs = {
+                'auth': self.auth,
+                'schema_name': node['schema_name'],
+                'table_name': node['table_name'],
+                'index_column': index_column,
+                'column': column
+            }
+            iterators.append(
+                QueryAppendIterator(**kwargs)
+            )
+        return iterators

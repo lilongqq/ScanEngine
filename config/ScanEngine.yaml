@@ -1,0 +1,236 @@
+logging:
+  version: 1
+  root:
+    handlers:
+      - console
+      - file
+    level: NOTSET
+  handlers:
+    console:
+      class: logging.StreamHandler
+      formatter: default
+      level: INFO
+      stream: ext://sys.stdout
+    file:
+      backupCount: 3
+      class: logging.handlers.RotatingFileHandler
+      encoding: utf-8
+      errors: replace
+      filename: log/ScanEngine.log
+      formatter: default
+      level: INFO
+      maxBytes: 10485760
+    flask:
+      backupCount: 1
+      class: logging.handlers.RotatingFileHandler
+      encoding: utf-8
+      errors: replace
+      filename: log/Rest.log
+      formatter: default
+      level: DEBUG
+      maxBytes: 10485760
+  loggers:
+    ScanEngine:
+      level: DEBUG
+      handlers:
+        - flask
+      propagate: false
+    werkzeug:
+      level: DEBUG
+      handlers:
+        - flask
+      propagate: false
+    paramiko:
+      level: WARNING
+      propagate: true
+    httpx:
+      level: WARNING
+      propagate: true
+  formatters:
+    brief:
+      format: "%(message)s"
+    default:
+      datefmt: "%Y-%m-%d %H:%M:%S"
+      format: "%(asctime)s %(levelname)-8s %(name)-15s %(lineno)-4d %(threadName)-18s--%(thread)-17d %(message)s"
+
+dbp:
+  socket:
+    ip: db_proxy
+    port: 9981
+    timeout: 1000000
+  binary:
+    fetch_size: 100
+    limit: 10
+  string:
+    fetch_size: 10000
+    limit: 1000
+    piece: 1000
+
+  noschema:
+    - neo4j
+    - neo4jv3
+    - janusgraph03
+    - elasticsearch
+    - elasticsearch7x
+    - tinkerpop
+    - access
+    - sqlite
+
+hbase:
+  limit: 100
+
+lotus:
+  socket:
+    ip: lotus
+    port: 9982
+    timeout: 1000000
+  email:
+    From: item[@name='From']/text
+    To: item[@name='SendTo']//text
+    cc: item[@name='CopyTo']//text
+    Subject: item[@name='Subject']/text
+    bcc: item[@name='BlindCopyTo']//text
+  file:
+    item: item[@name='$FILE']
+    file: object/file
+    filedata: filedata
+
+email:
+  headers:
+    - From
+    - Sender
+    - Reply-To
+    - Resent-Reply-To
+    - Resent-From
+    - Resent-Sender
+    - Date
+    - Resent-Date
+    - To
+    - Resent-To
+    - cc
+    - Resent-cc
+    - bcc
+    - Resent-bcc
+    - Message-ID
+    - Resent-Message-ID
+    - In-Reply-To
+    - References
+    - Keywords
+    - Subject
+    - Comments
+    - Encrypted
+  id:
+    - 163.com
+
+redis:
+  auth:
+    host: redis
+    port: 6379
+    password: |-
+      D13/h+6E6zeKJts/53hUSLnpC1w+n/slYrPYMS1C+TDM0LmUKXfTx3yijroxDp6zLPHeOrTcmiJS
+      lR0qhjQOdy61u5HDj8CN4CBETdOhEkw/6kiFDYq9m2hXzSFKH7O4nmRkym0YhS8+NuC11tRgP1Kg
+      Pn1JhzzDtnV61lfAobgR4eYWXFwwplfGQSFNpYYulEEyRhXGQ+frWLjRtvLzY7UMVk3widKjbGpG
+      pR6TEwpZM6w9Oe6waXmr15XfaEvviBT6J+gdGYalFhpsB8Ac+dVSQOeii03BzZqQIscoO8+MMfmd
+      x0MjAZ0HLo7/awAUrOVTotE4PZQex9E57oqaZJSpbZgJfTRHKB5w4UOvDLxOXuQ+srnjH7JKach7
+      YBF3myuhpao81EzzGgFDAa52dTSRDs+jwS7eaV8Wv07jf+DO6aDagDt1/38coB1d8rRThhwTydND
+      PBdqc6DCq7w/ir78SFXfNqTbSNNnLg4Z4eLtlNnLYqdamrx+bkCwEqI7LdJTkO1SvQpQeWg4VRZY
+      /HgIvjGhA59dafzblpb4KaP62xHBBndWKjh/hEDbm+2PrCNrq8s8q+NhExygTc3Jks0lW/diV3aH
+      i1OAYcoKk9n4gWLfOrd9oY/cGMjel85llZSpTTdNXVuwCI4hPQIlABuZhncrG26yfWTjgeJzumM=
+  ignore: IGNORE_SOURCE_FILES_MD5_CACHE
+  blacklist: EVENT_BLACK_LIST
+  whitelist: EVENT_WHITE_LIST
+  diff: TASK_FILE_DIFFERENCE_CACHE
+  stats: STATS
+  event: EVENT
+
+differator:
+  post:
+    - DBProxy
+    - POP3
+    - IMAP
+    - LOTUS
+
+kafka:
+  file_topic: data_p_file
+  text_topic: data_p_meta
+  event_topic: data_p_event
+  definition: se_definition
+  attributes: se_attributes
+  partition: 0
+  status: data_p_status
+  unprocessed: data_audit_failure
+  processed: data_audit_success
+  filter: data_audit_failure
+  producer:
+    bootstrap_servers: kafka:9092
+    retries: 3
+    max_request_size: 5242880
+    batch_size: 1048576
+    buffer_memory: 67108864
+    linger_ms: 100
+    retry_backoff_ms: 500
+    reconnect_backoff_ms: 1000
+    max_block_ms: 600000
+    request_timeout_ms: 600000
+    delivery_timeout_ms: 630000
+  consumer:
+    bootstrap_servers: kafka:9092
+    group_id: ScanEngine
+    auto_offset_reset: earliest
+
+flask:
+  flask_response_timeout: 5 # 5 seconds
+
+extract: false
+
+executor:
+  max_workers: &max_workers 8
+  max_queue: 16
+
+s3:
+  config:
+    max_pool_connections: *max_workers
+
+minio:
+  endpoint_url: http://minio:9000
+  aws_access_key_id: |-
+    25ArHcvuo8OoxKeXIwmgb11b21pVa4gcofJpiaTW+/AuIlbfWfznvnAUMTBXdPa88AszVzKQmzbS
+    xwCjuMyGNBhLOtrNRLDrQQ6jrz2+V75Kv9gfJ9DEWYGbu++9tcu5hRp7+5oXH5rzwKOdmt9iqzXF
+    gr6Dw89XZyVWQoXiUS93aidWk2jOw1/gF6Bs5qejA27uxC0oBEIoAokz5x5RU1F4xBUan2XIGebC
+    fvkzWRY6tuGZ4aLLEC6RM61yajoD8vrXoNJ1Py9X0ZxpMNY8tFi2Ui4SECBYCWQkn+tXr1b/nm/d
+    rccKbVd+WnZZ+8x/wmNiqHiD3tHRyyuBrIeIKiUBUqWP67on9UPx2hIbGbpuE1LtzDQ++E+8WjEq
+    7lIR+PpSq4E3r7iXfIxsYMew+gg4tqx+mGZLF80ahQh9scAfuFozc1VKKtgQF6pflvO1X5c3sUou
+    kMPY9JB0SSdM+mNOG4b7/vFd9ChjnrvvgBcEM0QnJPauGapcFDJTGLu03zDgspIpOeDUqRJhwnHl
+    3X/cuIX1ytzCgkCbsA95LvhQ4h0gUUYZWo4qegmbaC5Xkw2hZrQ1SGah0vAnVzAQncO02PaLJtvK
+    nvWTc+Q+N5RwcaFRz6Rpb9MFQr4yjmtjLoh07vvtV+ZbbBLuDasLpAy8mVT3DV0nv/K9L4jxI+w=
+  aws_secret_access_key: |-
+    F3/+y1cbrSLRId+w6WvqSj0q/LAcoyIZhlQWSZZAhdXmN9xtxl64T/sJXtgEQOuGX1d094fEUFox
+    iKBhInks4OEIscu3CDPt7HkJFh7dJRHpuRXUrmxu0m3X/FEdpJYxREyraptDUgBm56KAJPTpt6N3
+    XOrstvEg4falW2X+Og3mV3wISkXrqsAalMqMUZpzt379il6uDab5Z5NUe98D6f51MSodnY2yR56A
+    6G+JN4hkUl3HSZ9XpchcqYoaPq4qGc7QuOeUOcqL/mrZDfBzLjSalZYOEuLjTR64JdvQjA7EAQar
+    LNFgPkTq8rq05SEYDyRb788/u89FpAIuWPSswyZXp8UaF7tqbtZjq64nERnAu115oXJimxHAUnys
+    5/Y5cD458WXPOMmAiskcRJl94rC+CTgYXL9kAV56HEtXxxBSre0XJrDK3Nrd8auxKhA56PZTrPnt
+    09Lc8iIOE3bS3K3t370ShLlJqtrnIM79JFCjBUvQBx2kSa7f4SeVy8bSg/V+Zitd2Kmr0KCrYLLq
+    4DbTEh3BQ1psHN0WwPwUfITTGPDkfBVTZq8ObQUC3CcOBBk5gPdXS+XCPlHaFLgcm0mx5OH8nd4N
+    SgwJ+ffrFL+TfdPi7bQJi/zhsNrx2gUQaPakZ+VBi+KYlmVNSwz4TtKypiiEq5amarAwS0/X2Wo=
+  config:
+    max_pool_connections: *max_workers
+
+ftp:
+  modify_format: "%Y%m%d%H%M%S"
+
+sm4_key:
+  key: |-
+    DyDswOXe2m9hysxRDewIiI4fPYXL5LAtNeggrHhYdcDhE6zr0exhs7NElkYj9KF0jAFe/9arXTPt
+    vdZPel9M6eLT3opIe9hfZPBVr/hSrsdDXSLplR8TMAIfP1Gqkhh2EzQewoiX9+8JXch6lUx4N7+e
+    ND3hk80ickmIGvoVcuXUqOj9CAcLYbRbZ9DLVuKg5SZA4Gq8Hr+BMykFs8J0dW7vorztnSJGj2q1
+    Rb8umpR9JZtpLHQwu/t2wZ3BKHlvnvwWUsPZ4MPprCwQjAq9OQJe4L8/XtLu4pZMrwmaef1S7vdX
+    842SdUtJs6gRJ7LXlSxoE4ypcN40/1y436TnA5IFmqeHGEs5lN/LgaI6fUcBJWRtp7jGNKfrfhOv
+    MWCEyswIZbgkGxBOD9XJZenkP3hxK5icq0E8kkd/89WrRj5dsuH/zrUQcYn7Cfmut1gG7esxHu3B
+    nSVOIcYGsDDhuVFqZWa3UotelQF+d61y7InMts7v0YAVHtU4Ol6NoC0/XYXtbnCA2M/4F8k5vDSm
+    /GAylH6GDIKQr7EePq039oliOrUhrxp30LVjTWRN2S1hpDKFL5EW/tYxcUZFEpD4p055u0pN8v6Q
+    vH2zcC6xGv3y+M2K5ECO/ucmcT6ZXLeg4UMGjHlviKLG1Xr59XVaS2KfJHdvYhtqFho6dN++ax0=
+
+aishu:
+  encryption:
+    public_key_path: "certs/aishu_public_key.pem"  # 使用现有的公钥文件路径

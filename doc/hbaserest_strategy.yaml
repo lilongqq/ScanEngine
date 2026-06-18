@@ -1,0 +1,26 @@
+identity: d6cb3b454ef84b069fb883efacde269e
+scheduler:
+  op: start
+cls: strategy.Discovery
+strategy:
+  cls: crawling.database.hbaserestcrawler.HBaseIterator
+  iterator:
+    auth:
+      url: http://192.168.38.242:8080
+    resources:
+      name: ''
+      children:
+        - name: default
+          path: default
+          children: [ ]
+          layer: schema
+          schema_def: userDef
+          schema_name: default
+  filters: {}
+  action:
+    cls: dataprocessing.storage.MinioStorage
+    method: db
+  rules_id: b80993ff-299b-35cb-b709-d0d9f5eee9cf
+  url_distinguish_count: ''
+  url_distinguish_type: ''
+  url_enabled: '0'

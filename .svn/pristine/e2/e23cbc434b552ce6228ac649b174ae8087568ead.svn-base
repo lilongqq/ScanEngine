@@ -1,0 +1,845 @@
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import os
+import os.path
+import traceback
+import logging
+import io
+from gmssl import sm4
+from common.globals import Redis, Variables
+from common import classmap
+from common.functools import get_class
+from strategy import StrategyFactory
+from utils.database_found import database_found
+from flask import Flask, request, send_file
+from flask_httpauth import HTTPTokenAuth
+
+# import exceptions
+from smb.base import (
+    NotReadyError,
+    NotConnectedError
+)
+from smb.smb_structs import (
+    OperationFailure,
+    ProtocolError
+)
+from paramiko.ssh_exception import (
+    AuthenticationException,
+    IncompatiblePeer,
+    BadHostKeyException,
+    CouldNotCanonicalize,
+    ChannelException,
+    SSHException
+)
+from ftplib import (
+    error_reply,
+    error_temp,
+    error_perm,
+    error_proto
+)
+from botocore.exceptions import ClientError
+# 导入爱数网盘可能抛出的异常
+try:
+    from crawling.files.aishucrawler import AuthenticationException as AiShuAuthenticationException
+except ImportError:
+    # 如果无法导入，定义一个通用异常类
+    class AiShuAuthenticationException(Exception):
+        pass
+
+auth = HTTPTokenAuth(scheme='Bearer')
+
+tokens = {
+    "umh7s4+bka%zt4#i6=1^ko": "i^ld*4o+(+fz_j624_)-#n8iaud"
+}
+
+
+@auth.verify_token
+def verify_token(token):
+    if token in tokens:
+        return tokens[token]
+
+
+class ScanEngine(object):
+
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.app = Flask(self.__class__.__name__)
+        self.variables = Variables()
+        self.redis = Redis(**self.variables.redis['auth'])
+        self.app.config["timeout"] = self.variables.flask['flask_response_timeout']
+
+        self._load_api()
+        self.strategy_factory = StrategyFactory()
+
+    def _load_api(self):
+
+        self.app.add_url_rule(
+            '/opa',
+            view_func=self.operate_job, methods=['POST'])
+        self.app.add_url_rule(
+            '/test',
+            view_func=self.test_connect, methods=['POST'])
+        self.app.add_url_rule(
+            '/db_found',
+            view_func=self.db_found, methods=['POST']
+        )
+        self.app.add_url_rule(
+            '/db_info',
+            view_func=self.db_info, methods=['POST']
+        )
+        self.app.add_url_rule(
+            '/db_preview',
+            view_func=self.db_preview, methods=['POST']
+        )
+        self.app.add_url_rule(
+            '/download',
+            view_func=self.download, methods=['POST']
+        )
+        self.app.add_url_rule(
+            '/separate',
+            view_func=self.separate, methods=['POST']
+        )
+        self.app.add_url_rule(
+            '/restore',
+            view_func=self.restore, methods=['POST']
+        )
+        self.app.add_url_rule(
+            '/count_size',
+            view_func=self.count_size, methods=['POST']
+        )
+
+    def json_data(self, data, http_code=200):
+        return data, http_code, {"Content-Type": "application/json"}
+
+    @auth.login_required
+    def db_preview(self):
+        try:
+            req_body = request.json
+            self.logger.info(req_body)
+            node = req_body
+            client = get_class(
+                classmap.protocol.get(
+                    node['cls']
+                )
+            )(
+                **node['auth']
+            )
+
+            result = client.preview(
+                node['path']
+            ) if 'path' in node else client.preview(node['node'])
+
+            return self.json_data({
+                'code': 2000,
+                'message': 'found ok',
+                'data': result
+            })
+        except Exception:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常', 'data': []})
+
+    @auth.login_required
+    def db_info(self):
+        try:
+            req_body = request.json
+            self.logger.info(req_body)
+            node = req_body
+            client = get_class(
+                classmap.protocol.get(
+                    node['cls']
+                )
+            )(
+                **node['auth']
+            )
+
+            self.logger.info(client.db_info)
+
+            return self.json_data({
+                'code': 2000,
+                'message': 'found ok',
+                'data': client.db_info
+            })
+        except Exception:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常', 'data': []})
+
+    @auth.login_required
+    def db_found(self):
+        try:
+            req_body = request.json
+            self.logger.info(req_body)
+            ip_range = req_body.get('ipRange')
+            database_type = req_body.get('databaseType', 'Unlimited')
+            ports = req_body.get('ports', [])
+            self.logger.info(ip_range)
+            self.logger.info(database_type)
+            self.logger.info(ports)
+            results = database_found(
+                ip_range=ip_range,
+                database_type=database_type,
+                ports=ports
+            )
+
+            return self.json_data({
+                'code': 2000,
+                'message': '',
+                'data': results
+            })
+        except Exception:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常', 'data': {}})
+
+    @auth.login_required
+    def test_connect(self):
+        try:
+            req_body = request.json
+            self.logger.info(req_body)
+            # TODO password
+            node = req_body
+            browser = get_class(classmap.protocol.get(
+                node['cls']
+            )
+            )(
+                **node['auth']
+            )
+            result = browser.get_nodes(
+                node['path']
+            ) if 'path' in node else browser.get_nodes(node['node'])
+            self.logger.info(result)
+            is_include_file = node.get('isIncludeFile', 1)
+            if isinstance(result, list):
+                result1 = [
+                    node
+                    for node in result
+                    if 'children' in node
+                ]  # dir
+                if is_include_file:
+                    result2 = [
+                        node
+                        for node in result
+                        if 'children' not in node
+                    ]  # file
+                    result1.extend(result2)
+                return self.json_data({
+                    'code': 2000,
+                    'message': '',
+                    'data': result1
+                })
+            return self.json_data({
+                'code': 2000,
+                'message': '',
+                'data': [r.data for r in result]
+            })
+        # SMB Exception
+        except (NotReadyError, NotConnectedError):
+            return self.json_data({'code': 10940001, 'message': 'SMB NotConnectedError', 'data': []})
+        except ProtocolError:
+            return self.json_data({'code': 10940002, 'message': 'SMB ProtocolError', 'data': []})
+        except OperationFailure:
+            return self.json_data({'code': 10940003, 'message': 'SMB OperationFailure', 'data': []})
+        # SFTP Exception
+        except AuthenticationException:
+            return self.json_data({'code': 42520051, 'message': 'SFTP AuthenticationException', 'data': []})
+        except IncompatiblePeer:
+            return self.json_data({'code': 42530008, 'message': 'SFTP IncompatiblePeer', 'data': []})
+        except BadHostKeyException:
+            return self.json_data({'code': 42530008, 'message': 'SFTP BadHostKeyException', 'data': []})
+        except CouldNotCanonicalize:
+            return self.json_data({'code': 42540051, 'message': 'SFTP CouldNotCanonicalize', 'data': []})
+        except ChannelException as e:
+            if e.code == 1:
+                return self.json_data({'code': 42540001, 'message': str(e), 'data': []})
+            elif e.code == 2:
+                return self.json_data({'code': 42540002, 'message': str(e), 'data': []})
+            elif e.code == 3:
+                return self.json_data({'code': 42540003, 'message': str(e), 'data': []})
+            elif e.code == 4:
+                return self.json_data({'code': 42540004, 'message': str(e), 'data': []})
+            else:
+                return self.json_data({'code': 42530002, 'message': str(e), 'data': []})
+        except SSHException:
+            return self.json_data({'code': 42530002, 'message': 'SFTP SSHException', 'data': []})
+        # FTP Exception
+        except error_reply:
+            return self.json_data({'code': 95901300, 'message': 'FTP error_reply', 'data': []})
+        except error_proto:
+            return self.json_data({'code': 95901600, 'message': 'FTP error_proto', 'data': []})
+        except error_temp as e:
+            return self.json_data({'code': 95901400, 'message': str(e), 'data': []})
+        except error_perm as e:
+            return self.json_data({'code': 95901500, 'message': str(e), 'data': []})
+        # S3 Exception
+        # AiShu Exception
+        except AiShuAuthenticationException:
+            return self.json_data({'code': 10010001, 'message': '爱数网盘认证失败', 'data': []})
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'PermanentRedirect':
+                return self.json_data({'code': 12701301, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'PermanentRedirectControlError':
+                return self.json_data({'code': 12702301, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NotModified':
+                return self.json_data({'code': 12701304, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'Redirect':
+                return self.json_data({'code': 12701307, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'TemporaryRedirect':
+                return self.json_data({'code': 12702307, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'AccessControlListNotSupported':
+                return self.json_data({'code': 12701400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'AmbiguousGrantByEmailAddress':
+                return self.json_data({'code': 12702400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'AuthorizationHeaderMalformed':
+                return self.json_data({'code': 12703400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'AuthorizationQueryParametersError':
+                return self.json_data({'code': 12704400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'BadDigest':
+                return self.json_data({'code': 12705400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'BucketHasAccessPointsAttached':
+                return self.json_data({'code': 12706400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'ConnectionClosedByRequester':
+                return self.json_data({'code': 12707400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'CredentialsNotSupported':
+                return self.json_data({'code': 12708400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'DeviceNotActiveError':
+                return self.json_data({'code': 12709400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'EndpointNotFound':
+                return self.json_data({'code': 12710400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'EntityTooSmall':
+                return self.json_data({'code': 12711400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'EntityTooLarge':
+                return self.json_data({'code': 12712400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'ExpiredToken':
+                return self.json_data({'code': 12713400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'IllegalLocationConstraintException':
+                return self.json_data({'code': 12714400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'IllegalVersioningConfigurationException':
+                return self.json_data({'code': 12715400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'IncompleteBody':
+                return self.json_data({'code': 12716400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'IncorrectEndpoint':
+                return self.json_data({'code': 12717400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'IncorrectNumberOfFilesInPostRequest':
+                return self.json_data({'code': 12718400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InlineDataTooLarge':
+                return self.json_data({'code': 12719400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidAccessPoint':
+                return self.json_data({'code': 12720400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidAccessPointAliasError':
+                return self.json_data({'code': 12721400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidArgument':
+                return self.json_data({'code': 12722400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidBucketAclWithObjectOwnership':
+                return self.json_data({'code': 12723400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidBucketName':
+                return self.json_data({'code': 12724400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidBucketOwnerAWSAccountID':
+                return self.json_data({'code': 12725400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidDigest':
+                return self.json_data({'code': 12726400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidEncryptionAlgorithmError':
+                return self.json_data({'code': 12727400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidHostHeader':
+                return self.json_data({'code': 12728400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidHttpMethod':
+                return self.json_data({'code': 12729400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidLocationConstraint':
+                return self.json_data({'code': 12730400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidPart':
+                return self.json_data({'code': 12731400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidPartOrder':
+                return self.json_data({'code': 12732400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidPolicyDocument':
+                return self.json_data({'code': 12733400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidRequest':
+                return self.json_data({'code': 12734400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidSessionException':
+                return self.json_data({'code': 12735400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidSignature':
+                return self.json_data({'code': 12736400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidSOAPRequest':
+                return self.json_data({'code': 12737400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidStorageClass':
+                return self.json_data({'code': 12738400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidTargetBucketForLogging':
+                return self.json_data({'code': 12739400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidToken':
+                return self.json_data({'code': 12740400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidURI':
+                return self.json_data({'code': 12741400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'KeyTooLongError':
+                return self.json_data({'code': 12742400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'KMS.DisabledException':
+                return self.json_data({'code': 12743400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'KMS.InvalidKeyUsageException':
+                return self.json_data({'code': 12744400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'KMS.KMSInvalidStateException':
+                return self.json_data({'code': 12745400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'KMS.NotFoundException':
+                return self.json_data({'code': 12746400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MalformedACLError':
+                return self.json_data({'code': 12747400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MalformedPOSTRequest':
+                return self.json_data({'code': 12748400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MalformedXML':
+                return self.json_data({'code': 12749400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MaxMessageLengthExceeded':
+                return self.json_data({'code': 12750400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MaxPostPreDataLengthExceededError':
+                return self.json_data({'code': 12751400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MetadataTooLarge':
+                return self.json_data({'code': 12752400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MissingAttachment':
+                return self.json_data({'code': 12753400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MissingRequestBodyError':
+                return self.json_data({'code': 12754400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MissingSecurityElement':
+                return self.json_data({'code': 12755400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MissingSecurityHeader':
+                return self.json_data({'code': 12756400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoLoggingStatusForKey':
+                return self.json_data({'code': 12757400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchAsyncRequest':
+                return self.json_data({'code': 12758400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NotDeviceOwnerError':
+                return self.json_data({'code': 12759400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'RequestHeaderSectionTooLarge':
+                return self.json_data({'code': 12760400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'RequestTimeout':
+                return self.json_data({'code': 12761400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'RequestTorrentOfBucketError':
+                return self.json_data({'code': 12762400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'ResponseInterrupted':
+                return self.json_data({'code': 12763400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'ServerSideEncryptionConfigurationNotFoundError':
+                return self.json_data({'code': 12764400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'TagPolicyException':
+                return self.json_data({'code': 12765400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'TokenCodeInvalidError':
+                return self.json_data({'code': 12766400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'TokenRefreshRequired':
+                return self.json_data({'code': 12767400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'TooManyAccessPoints':
+                return self.json_data({'code': 12768400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'TooManyBuckets':
+                return self.json_data({'code': 12769400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'TooManyMultiRegionAccessPointregionsError':
+                return self.json_data({'code': 12770400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'TooManyMultiRegionAccessPoints':
+                return self.json_data({'code': 12771400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'UnexpectedContent':
+                return self.json_data({'code': 12772400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'UnsupportedArgument':
+                return self.json_data({'code': 12773400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'UnsupportedSignature':
+                return self.json_data({'code': 12774400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'UnresolvableGrantByEmailAddress':
+                return self.json_data({'code': 12775400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'UserKeyMustBeSpecified':
+                return self.json_data({'code': 12776400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidTag':
+                return self.json_data({'code': 12777400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MalformedPolicy':
+                return self.json_data({'code': 12778400, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'AccessDenied':
+                return self.json_data({'code': 12701403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'AccountProblem':
+                return self.json_data({'code': 12702403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'AllAccessDisabled':
+                return self.json_data({'code': 12703403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'CrossLocationLoggingProhibited':
+                return self.json_data({'code': 12704403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidAccessKeyId':
+                return self.json_data({'code': 12705403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidObjectState':
+                return self.json_data({'code': 12706403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidPayer':
+                return self.json_data({'code': 12707403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidRegion':
+                return self.json_data({'code': 12708403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidSecurity':
+                return self.json_data({'code': 12709403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MissingAuthenticationToken':
+                return self.json_data({'code': 12710403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NotSignedUp':
+                return self.json_data({'code': 12711403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'RequestTimeTooSkewed':
+                return self.json_data({'code': 12712403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'SignatureDoesNotMatch':
+                return self.json_data({'code': 12713403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'UnauthorizedAccessError':
+                return self.json_data({'code': 12714403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'UnexpectedIPError':
+                return self.json_data({'code': 12715403, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchAsyncRequest':
+                return self.json_data({'code': 12701404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchBucket':
+                return self.json_data({'code': 12702404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchBucketPolicy':
+                return self.json_data({'code': 12703404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchCORSConfiguration':
+                return self.json_data({'code': 12704404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchKey':
+                return self.json_data({'code': 12705404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchLifecycleConfiguration':
+                return self.json_data({'code': 12706404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchMultiRegionAccessPoint':
+                return self.json_data({'code': 12707404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchObjectLockConfiguration':
+                return self.json_data({'code': 12708404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchWebsiteConfiguration':
+                return self.json_data({'code': 12709404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchTagSet':
+                return self.json_data({'code': 12710404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchUpload':
+                return self.json_data({'code': 12711404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchVersion':
+                return self.json_data({'code': 12712404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoTransformationDefined':
+                return self.json_data({'code': 12713404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'ObjectLockConfigurationNotFoundError':
+                return self.json_data({'code': 12714404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'OwnershipControlsNotFoundError':
+                return self.json_data({'code': 12715404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NoSuchAccessPoint':
+                return self.json_data({'code': 12716404, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MethodNotAllowed':
+                return self.json_data({'code': 12701405, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'AccessPointAlreadyOwnedByYou':
+                return self.json_data({'code': 12701409, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'BucketAlreadyExists':
+                return self.json_data({'code': 12702409, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'BucketAlreadyOwnedByYou':
+                return self.json_data({'code': 12703409, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'BucketNotEmpty':
+                return self.json_data({'code': 12704409, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'ClientTokenConflict':
+                return self.json_data({'code': 12705409, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'ConditionalRequestConflict':
+                return self.json_data({'code': 12706409, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidBucketState':
+                return self.json_data({'code': 12707409, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'OperationAborted':
+                return self.json_data({'code': 12708409, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
+                return self.json_data({'code': 12709409, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'MissingContentLength':
+                return self.json_data({'code': 12701411, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'PreconditionFailed':
+                return self.json_data({'code': 12701412, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'RequestIsNotMultiPartContent':
+                return self.json_data({'code': 12702412, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InvalidRange':
+                return self.json_data({'code': 12701416, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'InternalError':
+                return self.json_data({'code': 12701500, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'NotImplemented':
+                return self.json_data({'code': 12701501, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'ServiceUnavailable':
+                return self.json_data({'code': 12701503, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == 'SlowDown':
+                return self.json_data({'code': 12702503, 'message': e.response['Error']['Message'], 'data': []})
+            elif e.response['Error']['Code'] == '503 SlowDown':
+                return self.json_data({'code': 12703503, 'message': e.response['Error']['Message'], 'data': []})
+            else:
+                return self.json_data({'code': 12700000, 'message': e.response['Error']['Message'], 'data': []})
+        except OSError as e:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': e.errno, 'message': e.strerror, 'data': []})
+        except Exception as e:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常', 'data': []})
+
+    @auth.login_required
+    def download(self):
+        try:
+            req_body = request.json
+            # [DEBUG-SEEYON] web 侧收到请求数据
+            self.logger.info('[DEBUG-SEEYON][download] web 收到请求: cls=%s, node_keys=%s',
+                             req_body.get('cls') if req_body else None,
+                             list(req_body.keys()) if req_body else None)
+            self.logger.info('[DEBUG-SEEYON][download] 完整请求体: %s', req_body)
+            node = req_body
+            client = get_class(
+                classmap.protocol.get(
+                    node['cls']
+                )
+            )(
+                **node['auth']
+            )
+            self.logger.info('[DEBUG-SEEYON][download] 客户端实例化成功: %s', type(client).__name__)
+            f = client.get_file(node)
+            self.logger.info('[DEBUG-SEEYON][download] get_file 返回成功, node=%s', {k: v for k, v in node.items() if k != 'auth'})
+            return send_file(f, mimetype='application/octet-stream')
+        except Exception:
+            self.logger.error('[DEBUG-SEEYON][download] 异常: %s', traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常', 'data': []}, http_code=500)
+
+    def separate(self):
+        try:
+            node = request.json
+            self.logger.info(node)
+            # 默认不打开占位符
+            placeholder = node.get('placeholder', 0)
+            try:
+                src_client = get_class(
+                    classmap.protocol.get(
+                        node['cls']
+                    )
+                )(
+                    **node['auth']
+                )
+            except:
+                self.logger.error(traceback.format_exc())
+                return self.json_data({
+                    'code': 4000,
+                    'message': '服务器连接失败'
+                })
+            sep_path = node.get('sep_path')
+            self.logger.info('sep_path:')
+            self.logger.info(sep_path)
+
+            # download file
+            try:
+                f = src_client.get_file(node)
+            except:
+                self.logger.error(traceback.format_exc())
+                return self.json_data({
+                    'code': 4000,
+                    'message': '获取源文件失败'
+                })
+            if node['isEncrypt'] == 1:
+                try:
+                    cipher = sm4.CryptSM4()
+                    key = bytes.fromhex(self.variables.sm4_key['key'])
+                    cipher.set_key(key, sm4.SM4_ENCRYPT)
+                    dist = io.BytesIO()
+                    cipher_data = cipher.crypt_ecb(f.read())
+                    dist.write(cipher_data)
+                    f.seek(0)
+                    dist.seek(0)
+                    f = dist
+                    self.logger.info('{}SM4加密成功'.format(sep_path))
+                except:
+                    self.logger.error('{}SM4加密失败'.format(sep_path))
+                    self.logger.error(traceback.format_exc())
+            remote = node.get('remote', 1)
+
+            if remote:
+                try:
+                    self.logger.info('sepCls:')
+                    self.logger.info(node['sepCls'])
+                    self.logger.info(node['sepAuth'])
+                    target_client = get_class(
+                        classmap.protocol.get(node['sepCls'])
+                    )(
+                        **node['sepAuth']
+                    )
+                    target_client.store_file(node, f)
+                except:
+                    self.logger.error(traceback.format_exc())
+                    return self.json_data({
+                        'code': 4000,
+                        'message': '远程隔离服务器连接失败'
+                    })
+            else:
+                src_client.store_file(node, f)
+
+            if placeholder:
+                src_client.empty_file(node)
+            else:
+                src_client.delete_file(node)
+            return self.json_data({
+                'code': 2000,
+                'message': 'succeed'
+            })
+        except Exception:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常'})
+
+    def restore(self):
+        try:
+            node = request.json
+            self.logger.info('before change node:')
+            self.logger.info(node)
+            # 交换节点信息
+            node['auth'], node['sepAuth'] = node['sepAuth'], node['auth']
+            node['cls'], node['sepCls'] = node['sepCls'], node['cls']
+            node['path'], node['sepPath'] = node['sepPath'] + \
+                '/' + node['name'], os.path.split(node['path'])[0]
+            self.logger.info('after change node:')
+            self.logger.info(node)
+            try:
+                src_client = get_class(
+                    classmap.protocol.get(node['cls'])
+                )(
+                    **node['auth']
+                )
+            except:
+                self.logger.error(traceback.format_exc())
+                return self.json_data({
+                    'code': 4000,
+                    'message': '服务器连接失败'
+                })
+            sep_path = node.get('sep_path')
+            self.logger.info('sep_path:')
+            self.logger.info(sep_path)
+
+            # download file
+            try:
+                f = src_client.get_file(node)
+            except:
+                self.logger.error(traceback.format_exc())
+                return self.json_data(
+                    {
+                        'code': 4000,
+                        'message': '获取源文件失败'
+                    }
+                )
+
+            if node['isEncrypt'] == 1:
+                try:
+                    decipher = sm4.CryptSM4()
+                    key = bytes.fromhex(self.variables.sm4_key['key'])
+                    decipher.set_key(key, sm4.SM4_DECRYPT)
+                    dist = io.BytesIO()
+                    decipher_data = decipher.crypt_ecb(f.read())
+                    dist.write(decipher_data)
+                    f.seek(0)
+                    dist.seek(0)
+                    f = dist
+                    self.logger.info('{}SM4解密成功'.format(sep_path))
+                except:
+                    self.logger.error('{}SM4解密失败'.format(sep_path))
+                    self.logger.error(traceback.format_exc())
+
+            remote = node.get('remote', 1)
+            if remote:
+                try:
+                    self.logger.info('sepCls:')
+                    self.logger.info(node['sepCls'])
+                    self.logger.info(node['sepAuth'])
+                    target_client = get_class(
+                        classmap.protocol.get(
+                            node['sepCls']
+                        )
+                    )(
+                        **node['sepAuth']
+                    )
+                    target_client.store_file(node, f)
+                except:
+                    self.logger.error(traceback.format_exc())
+                    return self.json_data({
+                        'code': 4000,
+                        'message': '远程隔离服务器连接失败'
+                    })
+            else:
+                src_client.store_file(node, f)
+
+            # 还原直接删除隔离区的文件
+            src_client.delete_file(node)
+            return self.json_data({
+                'code': 2000,
+                'message': 'succeed'
+            })
+        except Exception:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常'})
+
+    @auth.login_required
+    def operate_job(self):
+        try:
+            definition = request.json
+            # [DEBUG-SEEYON] web 侧下发的完整任务定义
+            self.logger.info('[DEBUG-SEEYON][operate_job] 收到任务定义: identity=%s, op=%s, cls=%s',
+                             definition.get('identity'), definition.get('op'), definition.get('cls'))
+            self.logger.info('[DEBUG-SEEYON][operate_job] 完整 definition: %s', definition)
+            op = definition.get('op', 'create')
+            identity = definition.get('identity')
+            if op == 'manual_pause':
+                self.redis.hset(
+                    self.variables.redis['event'],
+                    identity,
+                    0
+                )
+                self.redis.publish(
+                    self.variables.redis['event'],
+                    identity
+                )
+            elif op == 'manual_resume':
+                self.redis.hset(
+                    self.variables.redis['event'],
+                    identity,
+                    1
+                )
+                self.redis.publish(
+                    self.variables.redis['event'],
+                    identity
+                )
+            elif op == 'create':
+                func = getattr(self.strategy_factory, op)
+                func(definition)
+            elif op == 'secondary':
+                func = getattr(self.strategy_factory, op)
+                func(definition)
+            else:
+                func = getattr(self.strategy_factory, op)
+                func(identity)
+            return self.json_data({
+                'code': 2000,
+                'message': 'succeed'
+            })
+        except Exception:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常'})
+
+    @auth.login_required
+    def count_size(self):
+        try:
+            data = request.json
+            self.logger.info(data)
+            identity = data.get('identity', None)
+            stats_name = ':'.join([self.variables.redis['stats'], identity])
+            count, db_records, binary_count, size, task_id, status = self.redis.hmget(
+                stats_name,
+                ['count', 'db_records', 'binary_count', 'size', 'task_id', 'status']
+            )
+            if count:
+                count = int(count)
+            if db_records:
+                db_records = int(db_records)
+            if binary_count:
+                binary_count = int(binary_count)
+            if size:
+                size = int(size)
+            if task_id:
+                task_id = str(task_id, encoding='utf-8')
+            if status:
+                status = str(status, encoding='utf-8')
+
+            return self.json_data(
+                {
+                    'data': {
+                        'count': count,
+                        'size': size,
+                        'db_records': db_records,
+                        'binary_count': binary_count,
+                        'task_id': task_id,
+                        'status': status
+                    },
+                    'code': 2000,
+                    'message': 'succeed'
+                }
+            )
+        except Exception:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常'}, http_code=500)
+
+    def run(self):
+        self.app.run(
+            host="0.0.0.0",
+            port=8888,
+            use_reloader=False,
+            ssl_context=(
+                os.path.join(self.variables.certs, 'server-cert.pem'),
+                os.path.join(self.variables.certs, 'server-key.pem')
+            )
+        )
