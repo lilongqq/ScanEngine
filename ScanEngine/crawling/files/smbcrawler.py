@@ -94,7 +94,7 @@ class SMB(Client):
     def _(self, node):
         nodes = list()
         if node and (
-                shared_path := node.get('path', node['name'])
+                shared_path := node.get('path') or node.get('name')
         ):
             service_name, path = self.__service_name_and_path(shared_path)
             self.logger.info('listPath')
@@ -174,7 +174,7 @@ class SMB(Client):
 
     def get_file(self, node):
         if node and (
-                shared_path := node.get('path', node['name'])
+                shared_path := node.get('path') or node.get('name')
         ):
             service_name, path = self.__service_name_and_path(shared_path)
             f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
@@ -215,7 +215,7 @@ class SMB(Client):
         self.logger.info('node:')
         self.logger.info(node)
         if node and (
-                shared_path := node.get('path', node['name'])
+                shared_path := node.get('path') or node.get('name')
         ):
             service_name, path = self.__service_name_and_path(shared_path)
             self.logger.info('retrieveFile')
@@ -227,7 +227,7 @@ class SMB(Client):
 
     def delete_file(self, node):
         if node and (
-                shared_path := node.get('path', node['name'])
+                shared_path := node.get('path') or node.get('name')
         ):
             service_name, path = self.__service_name_and_path(shared_path)
             self.client.deleteFiles(
@@ -355,7 +355,9 @@ class SMBIterator(Iterator):
 
     def get_file(self, node):
         f = self.client.get_file(node)
-        md5 = hashlib.file_digest(f, 'md5')
+        md5 = hashlib.md5()
+        for chunk in iter(lambda: f.read(8192), b''):
+            md5.update(chunk)
         node['md5'] = md5.hexdigest()
         f.seek(0)
         return f

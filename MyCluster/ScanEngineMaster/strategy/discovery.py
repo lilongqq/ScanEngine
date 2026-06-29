@@ -66,38 +66,54 @@ class Discovery(Strategy):
         self.check_status()
 
     def check_status(self):
-        self.pipeline.hset(
-            self.stats_name,
-            'task_id',
-            self.task_id
-        )
-        self.pipeline.hset(
-            self.stats_name,
-            'create_time',
-            self.create_time
-        )
-        self.pipeline.hset(
-            self.stats_name,
-            'subtasks',
-            len(self.partitions)
-        )
-        self.pipeline.hset(
-            self.stats_name,
-            'count',
-            0
-        )
-        self.pipeline.hset(
-            self.stats_name,
-            'size',
-            0
-        )
-        self.pipeline.hset(
-            self.stats_name,
-            'db_records',
-            0
-        )
-        results = self.pipeline.execute()
-        self.logger.info(results)
+        status = self.redis.hget(self.stats_name, 'status')
+        if status not in {None, b'stop'}:
+            task_id_bytes = self.redis.hget(self.stats_name, 'task_id')
+            if task_id_bytes:
+                self.task_id = str(task_id_bytes, encoding='utf-8')
+            create_time = self.redis.hget(self.stats_name, 'create_time')
+            if create_time:
+                self.create_time = int(create_time)
+            self.pipeline.hset(
+                self.stats_name,
+                'subtasks',
+                len(self.partitions)
+            )
+            results = self.pipeline.execute()
+            self.logger.info(results)
+        else:
+            self.pipeline.hset(
+                self.stats_name,
+                'task_id',
+                self.task_id
+            )
+            self.pipeline.hset(
+                self.stats_name,
+                'create_time',
+                self.create_time
+            )
+            self.pipeline.hset(
+                self.stats_name,
+                'subtasks',
+                len(self.partitions)
+            )
+            self.pipeline.hset(
+                self.stats_name,
+                'count',
+                0
+            )
+            self.pipeline.hset(
+                self.stats_name,
+                'size',
+                0
+            )
+            self.pipeline.hset(
+                self.stats_name,
+                'db_records',
+                0
+            )
+            results = self.pipeline.execute()
+            self.logger.info(results)
 
     def start(self):
         self.redis.hset(self.stats_name, 'status', 'start')

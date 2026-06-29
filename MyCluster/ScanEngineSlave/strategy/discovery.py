@@ -127,6 +127,7 @@ class Discovery(Strategy):
         subtasks = self.redis.hincrby(self.stats_name, 'subtasks', -1)
         if not subtasks:
             self.redis.hset(self.stats_name, 'status', 'stop')
+            self.report_task_completed()
 
     def run(self):
         while self.bool:
@@ -222,6 +223,26 @@ class Discovery(Strategy):
                     amount=node['size']
                 )
             pipeline.execute()
+
+    def report_task_completed(self):
+        count, db_records, size, create_time = self.redis.hmget(
+            self.stats_name,
+            ['count', 'db_records', 'size', 'create_time']
+        )
+        self.producer.send(
+            blocking=True,
+            topic=self.variables.kafka['status'],
+            value={
+                'jobId': self.identity,
+                'taskId': self.task_id,
+                'createTime': int(create_time) if create_time else 0,
+                'completeTime': int(time.time() * 1000),
+                'count': int(count) if count else 0,
+                'db_records': int(db_records) if db_records else 0,
+                'size': int(size) if size else 0,
+                'rulesId': self.rules_id
+            }
+        )
 
     def stop(self):
         self.bool = False

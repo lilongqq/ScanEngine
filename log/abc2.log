@@ -1,87 +1,454 @@
-oot@e592feac98be:/opt# 
-root@e592feac98be:/opt# python3 -c "
-import logging
-logging.basicConfig(level=logging.WARNING)
-import shareplum.site as _sp_site
-_orig = _sp_site._Site2007.get_site
-def _safe(self):
-    try: return _orig(self)
-    except: return {}
-_sp_site._Site2007.get_site = _safe
+6-06-23 16:40:32 INFO     ScanEngine      37   MainThread        --140331518768960   [Topic=se_definition][Partition=0][Offset=12]
+2026-06-23 16:40:32 INFO     ScanEngine      44   MainThread        --140331518768960   {'scheduler': {'op': 'start'}, 'partitions': [0, 1, 2, 3, 4], 'identity': '17f235e6312e4129b744076abe44956c', 'cls': 'strategy.Discovery', 'strategy': {'iterator': {'auth': {'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'remote_name': '', 'host': '192.190.40.159', 'use_ntlm_v2': True, 'username': 'administrator'}, 'resources': {'children': [{'path': 'testshare_all', 'comments': '', 'children': [{'path': 'testshare_all/DBS-S', 'isReadOnly': False, 'create_time': 1594889317.8814116, 'children': [{'path': 'testshare_all/DBS-S/0图片类型扫描48', 'isReadOnly': False, 'create_time': 1677220051.4302144, 'children': [], 'last_attr_change_time': 1745911898.7537024, 'name': '0图片类型扫描48', 'type': 'dir', 'last_access_time': 1782203529.8727064, 'last_write_time': 1745293600.9469194}], 'last_attr_change_time': 1781502716.261216, 'name': 'DBS-S', 'type': 'dir', 'last_access_time': 1782200663.634745, 'last_write_time': 1781502716.261216}], 'isSpecial': False, 'name': 'testshare_all', 'type': 'dir'}], 'name': ''}}, 'action': {'method': 'file', 'url_enabled': '0', 'cls': 'dataprocessing.storage.MinioStorage', 'url_distinguish_count': '', 'url_distinguish_type': ''}, 'checklist': False, 'cls': 'SMB', 'filters': {'size': {'le': 83886080, 'gt': 0}, 'name': {'include': ['.doc', '.pdf', '.rtf', '.xls', '.xlt', '.xlsm', '.ppt', '.pps', '.pot', '.pptm', '.docm', '.wps', '.odp', '.ods', '.odt', '.pptx', '.xlsx', '.docx', '.7z', '.bz2', '.gz', '.rar', '.tar', '.zip', '.gif', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.eml', '.html', '.txt', '.et', '.dps', '.ofd', '.wpt', '.dpt', '.ett', '.uof', '.uos', '.uop', '.uot', '.eid', '.eis', '.eip', '.cfd']}}, 'rules_id': 'bc10dd8c70163e819633d99365a81329'}}
+2026-06-23 16:40:32 INFO     ScanEngine      47   MainThread        --140331518768960   {'scheduler': {'op': 'start'}, 'partitions': [0, 1, 2, 3, 4], 'identity': '17f235e6312e4129b744076abe44956c', 'cls': 'strategy.Discovery', 'strategy': {'iterator': {'auth': {'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'remote_name': '', 'host': '192.190.40.159', 'use_ntlm_v2': True, 'username': 'administrator'}, 'resources': {'children': [{'path': 'testshare_all', 'comments': '', 'children': [{'path': 'testshare_all/DBS-S', 'isReadOnly': False, 'create_time': 1594889317.8814116, 'children': [{'path': 'testshare_all/DBS-S/0图片类型扫描48', 'isReadOnly': False, 'create_time': 1677220051.4302144, 'children': [], 'last_attr_change_time': 1745911898.7537024, 'name': '0图片类型扫描48', 'type': 'dir', 'last_access_time': 1782203529.8727064, 'last_write_time': 1745293600.9469194}], 'last_attr_change_time': 1781502716.261216, 'name': 'DBS-S', 'type': 'dir', 'last_access_time': 1782200663.634745, 'last_write_time': 1781502716.261216}], 'isSpecial': False, 'name': 'testshare_all', 'type': 'dir'}], 'name': ''}}, 'action': {'method': 'file', 'url_enabled': '0', 'cls': 'dataprocessing.storage.MinioStorage', 'url_distinguish_count': '', 'url_distinguish_type': ''}, 'checklist': False, 'cls': 'SMB', 'filters': {'size': {'le': 83886080, 'gt': 0}, 'name': {'include': ['.doc', '.pdf', '.rtf', '.xls', '.xlt', '.xlsm', '.ppt', '.pps', '.pot', '.pptm', '.docm', '.wps', '.odp', '.ods', '.odt', '.pptx', '.xlsx', '.docx', '.7z', '.bz2', '.gz', '.rar', '.tar', '.zip', '.gif', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.eml', '.html', '.txt', '.et', '.dps', '.ofd', '.wpt', '.dpt', '.ett', '.uof', '.uos', '.uop', '.uot', '.eid', '.eis', '.eip', '.cfd']}}, 'rules_id': 'bc10dd8c70163e819633d99365a81329'}}
+2026-06-23 16:40:33 INFO     ScanEngine      37   MainThread        --140331518768960   [Topic=se_definition][Partition=0][Offset=13]
+2026-06-23 16:40:33 INFO     ScanEngine      44   MainThread        --140331518768960   {'op': 'slave_start', 'identity': '17f235e6312e4129b744076abe44956c'}
+2026-06-23 16:40:33 INFO     ScanEngine      47   MainThread        --140331518768960   {'op': 'slave_start', 'identity': '17f235e6312e4129b744076abe44956c'}
+2026-06-23 16:40:33 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-0_0--140331469620992   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:33 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-0_0--140331469620992   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:33 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-0_0--140331469620992   SMB2 dialect negotiation successful
+2026-06-23 16:40:33 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-0_0--140331469620992   Performing NTLMv2 authentication (on SMB2) with server challenge "b'b03321267ad48944'"
+2026-06-23 16:40:33 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-0_0--140331469620992   Performing NTLMv2 authentication (on SMB2) with server challenge "b'b03321267ad48944'"
+2026-06-23 16:40:33 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-0_0--140331469620992   Server supports SMB signing
+2026-06-23 16:40:33 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-0_0--140331469620992   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:33 INFO     SMB.SMBConnection 262  ThreadPoolExecutor-0_0--140331469620992   Authentication (on SMB2) successful!
+2026-06-23 16:40:33 INFO     SMBBatch        84   ThreadPoolExecutor-0_0--140331469620992   connected is True
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_0--140329884587776   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_1--140330473092864   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_1--140330473092864   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_0--140329884587776   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_1--140330473092864   SMB2 dialect negotiation successful
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_0--140329884587776   SMB2 dialect negotiation successful
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_1--140330473092864   Performing NTLMv2 authentication (on SMB2) with server challenge "b'70e9a6e2781eed14'"
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_1--140330473092864   Performing NTLMv2 authentication (on SMB2) with server challenge "b'70e9a6e2781eed14'"
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_0--140329884587776   Performing NTLMv2 authentication (on SMB2) with server challenge "b'73bb28fdcf070166'"
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_1--140330473092864   Server supports SMB signing
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_0--140329884587776   Performing NTLMv2 authentication (on SMB2) with server challenge "b'73bb28fdcf070166'"
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_1--140330473092864   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_0--140329884587776   Server supports SMB signing
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 262  ThreadPoolExecutor-7_1--140330473092864   Authentication (on SMB2) successful!
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_0--140329884587776   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:34 INFO     SMBBatch        84   ThreadPoolExecutor-7_1--140330473092864   connected is True
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 262  ThreadPoolExecutor-7_0--140329884587776   Authentication (on SMB2) successful!
+2026-06-23 16:40:34 INFO     SMBBatch        180  ThreadPoolExecutor-7_1--140330473092864   node:
+2026-06-23 16:40:34 INFO     SMBBatch        84   ThreadPoolExecutor-7_0--140329884587776   connected is True
+2026-06-23 16:40:34 INFO     SMBBatch        181  ThreadPoolExecutor-7_1--140330473092864   {'type': 'file', 'name': '11_5.tiff.tiff', 'size': 1126764, 'create_time': 1695374188.1454268, 'isReadOnly': False, 'last_access_time': 1782203652.071671, 'last_attr_change_time': 1745911898.7367003, 'last_write_time': 1594304580.9652312, 'path': 'testshare_all/DBS-S/0图片类型扫描48/11_5.tiff.tiff', 'auth': {'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'remote_name': '', 'host': '192.190.40.159', 'use_ntlm_v2': True, 'username': 'administrator'}, 'cls': 'SMB', 'taskId': '0da35925566646d78dc9843cc0d396b1'}
+2026-06-23 16:40:34 INFO     SMBBatch        180  ThreadPoolExecutor-7_0--140329884587776   node:
+2026-06-23 16:40:34 INFO     SMBBatch        186  ThreadPoolExecutor-7_1--140330473092864   retrieveFile
+2026-06-23 16:40:34 INFO     SMBBatch        181  ThreadPoolExecutor-7_0--140329884587776   {'type': 'file', 'name': '0_1.tiff.tiff', 'size': 1860514, 'create_time': 1695374187.8556087, 'isReadOnly': False, 'last_access_time': 1782203534.741655, 'last_attr_change_time': 1745911898.7367003, 'last_write_time': 1594304600.4669735, 'path': 'testshare_all/DBS-S/0图片类型扫描48/0_1.tiff.tiff', 'auth': {'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'remote_name': '', 'host': '192.190.40.159', 'use_ntlm_v2': True, 'username': 'administrator'}, 'cls': 'SMB', 'taskId': '0da35925566646d78dc9843cc0d396b1'}
+2026-06-23 16:40:34 INFO     SMBBatch        187  ThreadPoolExecutor-7_1--140330473092864   service_name: testshare_all, path: DBS-S/0图片类型扫描48/11_5.tiff.tiff
+2026-06-23 16:40:34 INFO     SMBBatch        186  ThreadPoolExecutor-7_0--140329884587776   retrieveFile
+2026-06-23 16:40:34 INFO     SMBBatch        187  ThreadPoolExecutor-7_0--140329884587776   service_name: testshare_all, path: DBS-S/0图片类型扫描48/0_1.tiff.tiff
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_3--140330422736640   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_2--140330439522048   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_6--140329785218816   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_7--140329776826112   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_4--140329802004224   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_5--140329793611520   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_3--140330422736640   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_3--140330422736640   SMB2 dialect negotiation successful
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_2--140330439522048   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_2--140330439522048   SMB2 dialect negotiation successful
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_6--140329785218816   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_7--140329776826112   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_4--140329802004224   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_5--140329793611520   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_6--140329785218816   SMB2 dialect negotiation successful
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_3--140330422736640   Performing NTLMv2 authentication (on SMB2) with server challenge "b'feadf98cbaf20406'"
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_7--140329776826112   SMB2 dialect negotiation successful
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_4--140329802004224   SMB2 dialect negotiation successful
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_2--140330439522048   Performing NTLMv2 authentication (on SMB2) with server challenge "b'c019ebdac05b71e5'"
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_5--140329793611520   SMB2 dialect negotiation successful
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_3--140330422736640   Performing NTLMv2 authentication (on SMB2) with server challenge "b'feadf98cbaf20406'"
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_6--140329785218816   Performing NTLMv2 authentication (on SMB2) with server challenge "b'dbcc83439882b693'"
+2026-06-23 16:40:34 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_2--140330439522048   Performing NTLMv2 authentication (on SMB2) with server challenge "b'c019ebdac05b71e5'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_4--140329802004224   Performing NTLMv2 authentication (on SMB2) with server challenge "b'f4d7244ec372189a'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_7--140329776826112   Performing NTLMv2 authentication (on SMB2) with server challenge "b'6140bbb8bfd10168'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_6--140329785218816   Performing NTLMv2 authentication (on SMB2) with server challenge "b'dbcc83439882b693'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_3--140330422736640   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_2--140330439522048   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_4--140329802004224   Performing NTLMv2 authentication (on SMB2) with server challenge "b'f4d7244ec372189a'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_5--140329793611520   Performing NTLMv2 authentication (on SMB2) with server challenge "b'e4d31503506efbb6'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_7--140329776826112   Performing NTLMv2 authentication (on SMB2) with server challenge "b'6140bbb8bfd10168'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_6--140329785218816   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_3--140330422736640   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 INFO     Discovery       113  ThreadPoolExecutor-0_0--140331469620992   StopIteration
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_2--140330439522048   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_4--140329802004224   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_5--140329793611520   Performing NTLMv2 authentication (on SMB2) with server challenge "b'e4d31503506efbb6'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_7--140329776826112   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_6--140329785218816   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 262  ThreadPoolExecutor-7_3--140330422736640   Authentication (on SMB2) successful!
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 262  ThreadPoolExecutor-7_2--140330439522048   Authentication (on SMB2) successful!
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_4--140329802004224   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_5--140329793611520   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_7--140329776826112   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 INFO     SMBBatch        84   ThreadPoolExecutor-7_3--140330422736640   connected is True
+2026-06-23 16:40:35 ERROR    Discovery       164  ThreadPoolExecutor-7_6--140329785218816   Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/dataprocessing/__init__.py", line 17, in __call__
+    data = stream()
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 377, in get_file
+    f = self.client.get_file(node)
+  File "/opt/ScanEngine/common/conntool.py", line 105, in wrapper
+    self.pool.client = self.cls(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 320, in __init__
+    super().__init__(*args, **kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 82, in __init__
+    connected = self.client.connect(ip=self.ip, port=self.port)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 127, in connect
+    self._pollForNetBIOSPacket(timeout)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 642, in _pollForNetBIOSPacket
+    self.feedData(data)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 54, in feedData
+    self._processNMBSessionPacket(self.data_nmb)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 75, in _processNMBSessionPacket
+    self.onNMBSessionMessage(packet.flags, packet.data)
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 145, in onNMBSessionMessage
+    if self._updateState(self.smb_message):
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 323, in _updateState_SMB2
+    raise ProtocolError('Unknown status value (0x%08X) in SMB_COM_SESSION_SETUP_ANDX (with extended security)' % message.status,
+smb.smb_structs.ProtocolError: Unknown status value (0xC00000D0) in SMB_COM_SESSION_SETUP_ANDX (with extended security)
+==================== SMB Message ====================
+Command: 0x01 (SMB2_COM_SESSION_SETUP) 
+Status: 0xC00000D0 
+Flags: 0x01 
+PID: 7 
+MID: 2 
+TID: 0 
+Data: 8 bytes 
+b'0900000000000000' 
+==================== SMB Data Packet (hex) ====================
+b'fe534d4240000000d00000c0010001000100000000000000020000000000000007000000000000007100002800540000000000000000000000000000000000000900000000000000'
 
-from shareplum import Site
-from shareplum.site import Version
-from requests_ntlm import HttpNtlmAuth
-auth = HttpNtlmAuth('spinfo-sp.com\\\\administrator', 'Spinfo0123')
-site = Site('http://192.168.37.72:45678', version=Version.v2010, auth=auth, verify_ssl=False)
 
-lst = site.List('共享文档')
-print('=== 可用字段 ===')
-for k, v in lst._disp_cols.items():
-    print(k, '->', v)
-"
+2026-06-23 16:40:35 INFO     SMBBatch        84   ThreadPoolExecutor-7_2--140330439522048   connected is True
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_5--140329793611520   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 ERROR    Discovery       164  ThreadPoolExecutor-7_4--140329802004224   Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/dataprocessing/__init__.py", line 17, in __call__
+    data = stream()
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 377, in get_file
+    f = self.client.get_file(node)
+  File "/opt/ScanEngine/common/conntool.py", line 105, in wrapper
+    self.pool.client = self.cls(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 320, in __init__
+    super().__init__(*args, **kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 82, in __init__
+    connected = self.client.connect(ip=self.ip, port=self.port)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 127, in connect
+    self._pollForNetBIOSPacket(timeout)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 642, in _pollForNetBIOSPacket
+    self.feedData(data)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 54, in feedData
+    self._processNMBSessionPacket(self.data_nmb)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 75, in _processNMBSessionPacket
+    self.onNMBSessionMessage(packet.flags, packet.data)
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 145, in onNMBSessionMessage
+    if self._updateState(self.smb_message):
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 323, in _updateState_SMB2
+    raise ProtocolError('Unknown status value (0x%08X) in SMB_COM_SESSION_SETUP_ANDX (with extended security)' % message.status,
+smb.smb_structs.ProtocolError: Unknown status value (0xC00000D0) in SMB_COM_SESSION_SETUP_ANDX (with extended security)
+==================== SMB Message ====================
+Command: 0x01 (SMB2_COM_SESSION_SETUP) 
+Status: 0xC00000D0 
+Flags: 0x01 
+PID: 7 
+MID: 2 
+TID: 0 
+Data: 8 bytes 
+b'0900000000000000' 
+==================== SMB Data Packet (hex) ====================
+b'fe534d4240000000d00000c0010001000100000000000000020000000000000007000000000000004100002000540000000000000000000000000000000000000900000000000000'
 
-=== 可用字段 ===
-ID -> {'name': 'ID', 'type': 'Counter'}
-内容类型 ID -> {'name': 'ContentTypeId', 'type': 'ContentTypeId'}
-内容类型 -> {'name': 'ContentType', 'type': 'Computed'}
-创建时间 -> {'name': 'Created_x0020_Date', 'type': 'Lookup'}
-创建者 -> {'name': 'Author', 'type': 'User'}
-修改时间 -> {'name': 'Last_x0020_Modified', 'type': 'Lookup'}
-修改者 -> {'name': 'Editor', 'type': 'User'}
-具有复制目标 -> {'name': '_HasCopyDestinations', 'type': 'Boolean'}
-复制源 -> {'name': '_CopySource', 'type': 'Text'}
-审批状态 -> {'name': '_ModerationStatus', 'type': 'ModStat'}
-审批者注释 -> {'name': '_ModerationComments', 'type': 'Note'}
-URL 路径 -> {'name': 'FileRef', 'type': 'Lookup'}
-路径 -> {'name': 'FileDirRef', 'type': 'Lookup'}
-文件大小 -> {'name': 'FileSizeDisplay', 'type': 'Computed'}
-项目类型 -> {'name': 'FSObjType', 'type': 'Lookup'}
-排序类型 -> {'name': 'SortBehavior', 'type': 'Lookup'}
-有效权限掩码 -> {'name': 'PermMask', 'type': 'Computed'}
-签出该项目的用户的 ID -> {'name': 'CheckedOutUserId', 'type': 'Lookup'}
-已签出到本地 -> {'name': 'IsCheckedoutToLocal', 'type': 'Lookup'}
-签出对象 -> {'name': 'LinkCheckedOutTitle', 'type': 'Computed'}
-名称 -> {'name': 'BaseName', 'type': 'Computed'}
-唯一 ID -> {'name': 'UniqueId', 'type': 'Lookup'}
-客户端 ID -> {'name': 'SyncClientId', 'type': 'Lookup'}
-ProgId -> {'name': 'ProgId', 'type': 'Lookup'}
-ScopeId -> {'name': 'ScopeId', 'type': 'Lookup'}
-病毒状态 -> {'name': 'VirusStatus', 'type': 'Lookup'}
-签入注释 -> {'name': '_CheckinComment', 'type': 'Lookup'}
-文档修改者 -> {'name': 'Modified_x0020_By', 'type': 'Text'}
-文档创建者 -> {'name': 'Created_x0020_By', 'type': 'Text'}
-文件类型 -> {'name': 'File_x0020_Type', 'type': 'Text'}
-HTML 文件类型 -> {'name': 'HTML_x0020_File_x0020_Type', 'type': 'Text'}
-源 URL -> {'name': '_SourceUrl', 'type': 'Text'}
-共享文件索引 -> {'name': '_SharedFileIndex', 'type': 'Text'}
-编辑菜单表格开始 -> {'name': '_EditMenuTableStart2', 'type': 'Computed'}
-编辑菜单表格结束 -> {'name': '_EditMenuTableEnd', 'type': 'Computed'}
-类型 -> {'name': 'DocIcon', 'type': 'Computed'}
-相对于服务器的 URL -> {'name': 'ServerUrl', 'type': 'Computed'}
-编码形式的绝对 URL -> {'name': 'EncodedAbsUrl', 'type': 'Computed'}
-属性包 -> {'name': 'MetaInfo', 'type': 'Lookup'}
-级别 -> {'name': '_Level', 'type': 'Integer'}
-是当前版本 -> {'name': '_IsCurrentVersion', 'type': 'Boolean'}
-子项目计数 -> {'name': 'ItemChildCount', 'type': 'Lookup'}
-子文件夹计数 -> {'name': 'FolderChildCount', 'type': 'Lookup'}
-选择 -> {'name': 'SelectFilename', 'type': 'Computed'}
-编辑 -> {'name': 'Edit', 'type': 'Computed'}
-owshiddenversion -> {'name': 'owshiddenversion', 'type': 'Integer'}
-UI 版本 -> {'name': '_UIVersion', 'type': 'Integer'}
-版本 -> {'name': '_UIVersionString', 'type': 'Text'}
-实例 ID -> {'name': 'InstanceID', 'type': 'Integer'}
-排序 -> {'name': 'Order', 'type': 'Number'}
-GUID -> {'name': 'GUID', 'type': 'Guid'}
-工作流版本 -> {'name': 'WorkflowVersion', 'type': 'Integer'}
-工作流实例 ID -> {'name': 'WorkflowInstanceID', 'type': 'Guid'}
-源版本(转换文档) -> {'name': 'ParentVersionString', 'type': 'Lookup'}
-源名称(转换文档) -> {'name': 'ParentLeafName', 'type': 'Lookup'}
-文档并发数 -> {'name': 'DocConcurrencyNumber', 'type': 'Lookup'}
-标题 -> {'name': 'Title', 'type': 'Text'}
-模板链接 -> {'name': 'TemplateUrl', 'type': 'Text'}
-HTML 文件链接 -> {'name': 'xd_ProgID', 'type': 'Text'}
-已签名 -> {'name': 'xd_Signature', 'type': 'Boolean'}
-合并 -> {'name': 'Combine', 'type': 'Computed'}
-重新链接 -> {'name': 'RepairDocument', 'type': 'Computed'}
 
+2026-06-23 16:40:35 INFO     SMBBatch        180  ThreadPoolExecutor-7_3--140330422736640   node:
+2026-06-23 16:40:35 ERROR    Discovery       164  ThreadPoolExecutor-7_7--140329776826112   Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/dataprocessing/__init__.py", line 17, in __call__
+    data = stream()
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 377, in get_file
+    f = self.client.get_file(node)
+  File "/opt/ScanEngine/common/conntool.py", line 105, in wrapper
+    self.pool.client = self.cls(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 320, in __init__
+    super().__init__(*args, **kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 82, in __init__
+    connected = self.client.connect(ip=self.ip, port=self.port)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 127, in connect
+    self._pollForNetBIOSPacket(timeout)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 642, in _pollForNetBIOSPacket
+    self.feedData(data)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 54, in feedData
+    self._processNMBSessionPacket(self.data_nmb)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 75, in _processNMBSessionPacket
+    self.onNMBSessionMessage(packet.flags, packet.data)
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 145, in onNMBSessionMessage
+    if self._updateState(self.smb_message):
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 323, in _updateState_SMB2
+    raise ProtocolError('Unknown status value (0x%08X) in SMB_COM_SESSION_SETUP_ANDX (with extended security)' % message.status,
+smb.smb_structs.ProtocolError: Unknown status value (0xC00000D0) in SMB_COM_SESSION_SETUP_ANDX (with extended security)
+==================== SMB Message ====================
+Command: 0x01 (SMB2_COM_SESSION_SETUP) 
+Status: 0xC00000D0 
+Flags: 0x01 
+PID: 7 
+MID: 2 
+TID: 0 
+Data: 8 bytes 
+b'0900000000000000' 
+==================== SMB Data Packet (hex) ====================
+b'fe534d4240000000d00000c001000100010000000000000002000000000000000700000000000000010a000400540000000000000000000000000000000000000900000000000000'
+
+
+2026-06-23 16:40:35 INFO     SMBBatch        180  ThreadPoolExecutor-7_2--140330439522048   node:
+2026-06-23 16:40:35 INFO     SMBBatch        181  ThreadPoolExecutor-7_3--140330422736640   {'type': 'file', 'name': '20_jimi.jpg.jpg', 'size': 129006, 'create_time': 1695374188.5172133, 'isReadOnly': False, 'last_access_time': 1782203843.9453087, 'last_attr_change_time': 1745911898.7377024, 'last_write_time': 1564048553.3936932, 'path': 'testshare_all/DBS-S/0图片类型扫描48/20_jimi.jpg.jpg', 'auth': {'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'remote_name': '', 'host': '192.190.40.159', 'use_ntlm_v2': True, 'username': 'administrator'}, 'cls': 'SMB', 'taskId': '0da35925566646d78dc9843cc0d396b1'}
+2026-06-23 16:40:35 INFO     SMBBatch        181  ThreadPoolExecutor-7_2--140330439522048   {'type': 'file', 'name': '1_10-31b45c268540cd2acbfab5ff16071446.gif.gif', 'size': 42357, 'create_time': 1695374194.809614, 'isReadOnly': False, 'last_access_time': 1781502798.8191638, 'last_attr_change_time': 1745911898.7377024, 'last_write_time': 1576031430.086773, 'path': 'testshare_all/DBS-S/0图片类型扫描48/1_10-31b45c268540cd2acbfab5ff16071446.gif.gif', 'auth': {'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'remote_name': '', 'host': '192.190.40.159', 'use_ntlm_v2': True, 'username': 'administrator'}, 'cls': 'SMB', 'taskId': '0da35925566646d78dc9843cc0d396b1'}
+2026-06-23 16:40:35 INFO     SMBBatch        186  ThreadPoolExecutor-7_3--140330422736640   retrieveFile
+2026-06-23 16:40:35 INFO     SMBBatch        186  ThreadPoolExecutor-7_2--140330439522048   retrieveFile
+2026-06-23 16:40:35 ERROR    Discovery       164  ThreadPoolExecutor-7_5--140329793611520   Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/dataprocessing/__init__.py", line 17, in __call__
+    data = stream()
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 377, in get_file
+    f = self.client.get_file(node)
+  File "/opt/ScanEngine/common/conntool.py", line 105, in wrapper
+    self.pool.client = self.cls(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 320, in __init__
+    super().__init__(*args, **kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 82, in __init__
+    connected = self.client.connect(ip=self.ip, port=self.port)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 127, in connect
+    self._pollForNetBIOSPacket(timeout)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 642, in _pollForNetBIOSPacket
+    self.feedData(data)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 54, in feedData
+    self._processNMBSessionPacket(self.data_nmb)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 75, in _processNMBSessionPacket
+    self.onNMBSessionMessage(packet.flags, packet.data)
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 145, in onNMBSessionMessage
+    if self._updateState(self.smb_message):
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 323, in _updateState_SMB2
+    raise ProtocolError('Unknown status value (0x%08X) in SMB_COM_SESSION_SETUP_ANDX (with extended security)' % message.status,
+smb.smb_structs.ProtocolError: Unknown status value (0xC00000D0) in SMB_COM_SESSION_SETUP_ANDX (with extended security)
+==================== SMB Message ====================
+Command: 0x01 (SMB2_COM_SESSION_SETUP) 
+Status: 0xC00000D0 
+Flags: 0x01 
+PID: 7 
+MID: 2 
+TID: 0 
+Data: 8 bytes 
+b'0900000000000000' 
+==================== SMB Data Packet (hex) ====================
+b'fe534d4240000000d00000c001000100010000000000000002000000000000000700000000000000810d000400540000000000000000000000000000000000000900000000000000'
+
+
+2026-06-23 16:40:35 INFO     SMBBatch        187  ThreadPoolExecutor-7_3--140330422736640   service_name: testshare_all, path: DBS-S/0图片类型扫描48/20_jimi.jpg.jpg
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_4--140329802004224   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_6--140329785218816   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_7--140329776826112   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:35 INFO     SMBBatch        187  ThreadPoolExecutor-7_2--140330439522048   service_name: testshare_all, path: DBS-S/0图片类型扫描48/1_10-31b45c268540cd2acbfab5ff16071446.gif.gif
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_5--140329793611520   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_4--140329802004224   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:35 INFO     SMBBatch        180  ThreadPoolExecutor-7_1--140330473092864   node:
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_7--140329776826112   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_6--140329785218816   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_4--140329802004224   SMB2 dialect negotiation successful
+2026-06-23 16:40:35 INFO     SMBBatch        181  ThreadPoolExecutor-7_1--140330473092864   {'type': 'file', 'name': '3_2.tiff.tiff', 'size': 152584, 'create_time': 1695374188.032491, 'isReadOnly': False, 'last_access_time': 1782203845.307129, 'last_attr_change_time': 1745911898.7396975, 'last_write_time': 1594302006.0, 'path': 'testshare_all/DBS-S/0图片类型扫描48/3_2.tiff.tiff', 'auth': {'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'remote_name': '', 'host': '192.190.40.159', 'use_ntlm_v2': True, 'username': 'administrator'}, 'cls': 'SMB', 'taskId': '0da35925566646d78dc9843cc0d396b1'}
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_5--140329793611520   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_7--140329776826112   SMB2 dialect negotiation successful
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_6--140329785218816   SMB2 dialect negotiation successful
+2026-06-23 16:40:35 INFO     SMBBatch        186  ThreadPoolExecutor-7_1--140330473092864   retrieveFile
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_5--140329793611520   SMB2 dialect negotiation successful
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_4--140329802004224   Performing NTLMv2 authentication (on SMB2) with server challenge "b'bcc1887dae83698b'"
+2026-06-23 16:40:35 INFO     SMBBatch        187  ThreadPoolExecutor-7_1--140330473092864   service_name: testshare_all, path: DBS-S/0图片类型扫描48/3_2.tiff.tiff
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_4--140329802004224   Performing NTLMv2 authentication (on SMB2) with server challenge "b'bcc1887dae83698b'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_4--140329802004224   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_4--140329802004224   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_6--140329785218816   Performing NTLMv2 authentication (on SMB2) with server challenge "b'1325dfb984f7a51f'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_5--140329793611520   Performing NTLMv2 authentication (on SMB2) with server challenge "b'2a174d2f5da1969f'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_7--140329776826112   Performing NTLMv2 authentication (on SMB2) with server challenge "b'a29d9db440dc22fd'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_6--140329785218816   Performing NTLMv2 authentication (on SMB2) with server challenge "b'1325dfb984f7a51f'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_5--140329793611520   Performing NTLMv2 authentication (on SMB2) with server challenge "b'2a174d2f5da1969f'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_7--140329776826112   Performing NTLMv2 authentication (on SMB2) with server challenge "b'a29d9db440dc22fd'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_6--140329785218816   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_5--140329793611520   Server supports SMB signing
+2026-06-23 16:40:35 ERROR    Discovery       164  ThreadPoolExecutor-7_4--140329802004224   Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/dataprocessing/__init__.py", line 17, in __call__
+    data = stream()
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 377, in get_file
+    f = self.client.get_file(node)
+  File "/opt/ScanEngine/common/conntool.py", line 105, in wrapper
+    self.pool.client = self.cls(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 320, in __init__
+    super().__init__(*args, **kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 82, in __init__
+    connected = self.client.connect(ip=self.ip, port=self.port)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 127, in connect
+    self._pollForNetBIOSPacket(timeout)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 642, in _pollForNetBIOSPacket
+    self.feedData(data)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 54, in feedData
+    self._processNMBSessionPacket(self.data_nmb)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 75, in _processNMBSessionPacket
+    self.onNMBSessionMessage(packet.flags, packet.data)
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 145, in onNMBSessionMessage
+    if self._updateState(self.smb_message):
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 323, in _updateState_SMB2
+    raise ProtocolError('Unknown status value (0x%08X) in SMB_COM_SESSION_SETUP_ANDX (with extended security)' % message.status,
+smb.smb_structs.ProtocolError: Unknown status value (0xC00000D0) in SMB_COM_SESSION_SETUP_ANDX (with extended security)
+==================== SMB Message ====================
+Command: 0x01 (SMB2_COM_SESSION_SETUP) 
+Status: 0xC00000D0 
+Flags: 0x01 
+PID: 7 
+MID: 2 
+TID: 0 
+Data: 8 bytes 
+b'0900000000000000' 
+==================== SMB Data Packet (hex) ====================
+b'fe534d4240000000d00000c001000100010000000000000002000000000000000700000000000000810e000400540000000000000000000000000000000000000900000000000000'
+
+
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_7--140329776826112   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_6--140329785218816   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_5--140329793611520   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_7--140329776826112   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 ERROR    Discovery       164  ThreadPoolExecutor-7_6--140329785218816   Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/dataprocessing/__init__.py", line 17, in __call__
+    data = stream()
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 377, in get_file
+    f = self.client.get_file(node)
+  File "/opt/ScanEngine/common/conntool.py", line 105, in wrapper
+    self.pool.client = self.cls(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 320, in __init__
+    super().__init__(*args, **kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 82, in __init__
+    connected = self.client.connect(ip=self.ip, port=self.port)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 127, in connect
+    self._pollForNetBIOSPacket(timeout)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 642, in _pollForNetBIOSPacket
+    self.feedData(data)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 54, in feedData
+    self._processNMBSessionPacket(self.data_nmb)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 75, in _processNMBSessionPacket
+    self.onNMBSessionMessage(packet.flags, packet.data)
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 145, in onNMBSessionMessage
+    if self._updateState(self.smb_message):
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 323, in _updateState_SMB2
+    raise ProtocolError('Unknown status value (0x%08X) in SMB_COM_SESSION_SETUP_ANDX (with extended security)' % message.status,
+smb.smb_structs.ProtocolError: Unknown status value (0xC00000D0) in SMB_COM_SESSION_SETUP_ANDX (with extended security)
+==================== SMB Message ====================
+Command: 0x01 (SMB2_COM_SESSION_SETUP) 
+Status: 0xC00000D0 
+Flags: 0x01 
+PID: 7 
+MID: 2 
+TID: 0 
+Data: 8 bytes 
+b'0900000000000000' 
+==================== SMB Data Packet (hex) ====================
+b'fe534d4240000000d00000c001000100010000000000000002000000000000000700000000000000010c000400540000000000000000000000000000000000000900000000000000'
+
+
+2026-06-23 16:40:35 ERROR    Discovery       164  ThreadPoolExecutor-7_5--140329793611520   Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/dataprocessing/__init__.py", line 17, in __call__
+    data = stream()
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 377, in get_file
+    f = self.client.get_file(node)
+  File "/opt/ScanEngine/common/conntool.py", line 105, in wrapper
+    self.pool.client = self.cls(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 320, in __init__
+    super().__init__(*args, **kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 82, in __init__
+    connected = self.client.connect(ip=self.ip, port=self.port)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 127, in connect
+    self._pollForNetBIOSPacket(timeout)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 642, in _pollForNetBIOSPacket
+    self.feedData(data)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 54, in feedData
+    self._processNMBSessionPacket(self.data_nmb)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 75, in _processNMBSessionPacket
+    self.onNMBSessionMessage(packet.flags, packet.data)
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 145, in onNMBSessionMessage
+    if self._updateState(self.smb_message):
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 323, in _updateState_SMB2
+    raise ProtocolError('Unknown status value (0x%08X) in SMB_COM_SESSION_SETUP_ANDX (with extended security)' % message.status,
+smb.smb_structs.ProtocolError: Unknown status value (0xC00000D0) in SMB_COM_SESSION_SETUP_ANDX (with extended security)
+==================== SMB Message ====================
+Command: 0x01 (SMB2_COM_SESSION_SETUP) 
+Status: 0xC00000D0 
+Flags: 0x01 
+PID: 7 
+MID: 2 
+TID: 0 
+Data: 8 bytes 
+b'0900000000000000' 
+==================== SMB Data Packet (hex) ====================
+b'fe534d4240000000d00000c001000100010000000000000002000000000000000700000000000000010d000400540000000000000000000000000000000000000900000000000000'
+
+
+2026-06-23 16:40:35 ERROR    Discovery       164  ThreadPoolExecutor-7_7--140329776826112   Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/dataprocessing/__init__.py", line 17, in __call__
+    data = stream()
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 377, in get_file
+    f = self.client.get_file(node)
+  File "/opt/ScanEngine/common/conntool.py", line 105, in wrapper
+    self.pool.client = self.cls(*self.args, **self.kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 320, in __init__
+    super().__init__(*args, **kwargs)
+  File "/opt/ScanEngine/crawling/files/smbcrawler.py", line 82, in __init__
+    connected = self.client.connect(ip=self.ip, port=self.port)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 127, in connect
+    self._pollForNetBIOSPacket(timeout)
+  File "/usr/local/lib/python3.9/site-packages/smb/SMBConnection.py", line 642, in _pollForNetBIOSPacket
+    self.feedData(data)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 54, in feedData
+    self._processNMBSessionPacket(self.data_nmb)
+  File "/usr/local/lib/python3.9/site-packages/nmb/base.py", line 75, in _processNMBSessionPacket
+    self.onNMBSessionMessage(packet.flags, packet.data)
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 145, in onNMBSessionMessage
+    if self._updateState(self.smb_message):
+  File "/usr/local/lib/python3.9/site-packages/smb/base.py", line 323, in _updateState_SMB2
+    raise ProtocolError('Unknown status value (0x%08X) in SMB_COM_SESSION_SETUP_ANDX (with extended security)' % message.status,
+smb.smb_structs.ProtocolError: Unknown status value (0xC00000D0) in SMB_COM_SESSION_SETUP_ANDX (with extended security)
+==================== SMB Message ====================
+Command: 0x01 (SMB2_COM_SESSION_SETUP) 
+Status: 0xC00000D0 
+Flags: 0x01 
+PID: 7 
+MID: 2 
+TID: 0 
+Data: 8 bytes 
+b'0900000000000000' 
+==================== SMB Data Packet (hex) ====================
+b'fe534d4240000000d00000c0010001000100000000000000020000000000000007000000000000001900002400540000000000000000000000000000000000000900000000000000'
+
+
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 99   ThreadPoolExecutor-7_4--140329802004224   Authentication with remote machine "DESKTOP-B3MME11" for user "administrator" will be using NTLM v2 authentication (with extended security)
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 125  ThreadPoolExecutor-7_4--140329802004224   Now switching over to SMB2 protocol communication
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 249  ThreadPoolExecutor-7_4--140329802004224   SMB2 dialect negotiation successful
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 361  ThreadPoolExecutor-7_4--140329802004224   Performing NTLMv2 authentication (on SMB2) with server challenge "b'ca23691b43f02274'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 364  ThreadPoolExecutor-7_4--140329802004224   Performing NTLMv2 authentication (on SMB2) with server challenge "b'ca23691b43f02274'"
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 394  ThreadPoolExecutor-7_4--140329802004224   Server supports SMB signing
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 410  ThreadPoolExecutor-7_4--140329802004224   SMB signing deactivated. SMB messages will NOT be signed.
+2026-06-23 16:40:35 INFO     SMB.SMBConnection 262  ThreadPoolExecutor-7_4--140329802004224   Authentication (on SMB2) successful!
+2026-06-23 16:40:35 INFO     SMBBatch        84   ThreadPoolExecutor-7_4--140329802004224   connected is True
+2026-06-23 16:40:35 INFO     SMBBatch        180  ThreadPoolExecutor-7_4--140329802004224   node:
+2026-06-23 16:40:35 INFO     SMBBatch        181  ThreadPoolExecutor-7_4--140329802004224   {'type': 'file', 'name': '41_创建表.jpg.jpg', 'size': 46197, 'create_time': 1695374191.0727515, 'isReadOnly': False, 'last_access_time': 1781502757.6606252, 'last_attr_change_time': 1745911898.7396975, 'last_write_time': 1499910080.0, 'path': 'testshare_all/DBS-S/0图片类型扫描48/41_创建表.jpg.jpg', 'auth': {'password': 'Smile@0123', 'port': '445', 'is_direct_tcp': True, 'remote_name': '', 'host': '192.190.40.159', 'use_ntlm_v2': True, 'username': 'administrator'}, 'cls': 'SMB', 'taskId': '0da35925566646d78dc9843cc0d396b1'}
+2026-06-23 16:40:35 INFO     SMBBatch        186  ThreadPoolExecutor-7_4--140329802004224   retrieveFile
+2026-06-23 16:40:35 INFO     SMBBatch        187  ThreadPoolExecutor-7_4--140329802004224   service_name: testshare_all, path: DBS-S/0图片类型扫描48/41_创建表.jpg.jpg
+2026-06-23 16:40:35 INFO     Discovery       116  ThreadPoolExecutor-0_0--140331469620992   shutdown

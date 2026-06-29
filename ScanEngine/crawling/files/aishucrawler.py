@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import io
 import hashlib
 import logging
 import os.path
@@ -8,16 +7,17 @@ import requests
 import time
 import json
 import threading
-from functools import partial
+from tempfile import SpooledTemporaryFile
+from functools import partial, singledispatchmethod
 from collections import UserDict
 from collections.abc import MutableMapping
-from functools import gen_key, singledispatchmethod
+from urllib.parse import urlparse
+from common.functools import gen_key
 from requests.auth import AuthBase
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 from common.globals import Variables
-from common.crypto import Asymmetric
 from crawling.interface import Iterator, Client
 
 # 尝试导入存储相关模块
@@ -33,6 +33,13 @@ except ImportError as e:
     Producer = None
 
 # 自定义异常类
+def _build_api_url(base_url, port, path):
+    """根据 base_url 构建 API URL，替换端口号。"""
+    parsed = urlparse(base_url)
+    hostname = parsed.hostname or parsed.path
+    return f"{parsed.scheme}://{hostname}:{port}{path}"
+
+
 class AiShuException(Exception):
     """爱数网盘基础异常"""
     pass
@@ -122,13 +129,9 @@ class AiShuAuth(AuthBase):
                 self.logger.info(f"用户名：{self.username}")
                 self.logger.info(f"是否使用用户上传公钥：{'是' if self.pkey else '否'}")
                 self.logger.info(f"SSL验证设置：{self.session.verify}")
-                
-                # 解析协议和主机
-                protocol = "https" if self.url.startswith("https://") else "http"
-                base_host = self.url.replace("https://", "").replace("http://", "")
-                
+
                 # 使用正确的认证端点、端口和协议
-                auth_url = f"{protocol}://{base_host}:9998/v1/auth1?method=getnew"
+                auth_url = _build_api_url(self.url, 9998, '/v1/auth1') + '?method=getnew'
                 
                 # RSA加密密码（简化版本，实际应使用真正的RSA公钥加密）
                 encrypted_password = self._encrypt_password_rsa(self.password)
@@ -184,83 +187,58 @@ class AiShuAuth(AuthBase):
     
     def _encrypt_password_rsa(self, password):
         """
-        RSA密码加密
-        参考爱数5.0版本Java/C示例的配置方式，优化公钥路径加载
+        RSA公钥加密密码
         """
-        try:
-            # 1. 优先使用用户上传的公钥内容（与SFTP保持一致的字段名pkey）
-            if self.pkey:
-                self.logger.info("使用用户上传的RSA公钥进行加密")
-                self.logger.debug(f"公钥内容长度: {len(self.pkey)} 字符")
-                # 直接使用用户上传的公钥内容创建Asymmetric实例
-                crypto = Asymmetric(public_key_content=self.pkey)
-                encrypted_password = crypto.encrypt(password)
-                self.logger.debug(f"使用用户上传公钥的RSA加密成功，加密后长度: {len(encrypted_password)} 字符")
-                return encrypted_password
-            
-            self.logger.debug("未提供用户上传的公钥，尝试从其他来源获取")
-            
-            # 2. 尝试从环境变量获取公钥路径（系统级配置）
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+        import base64
+
+        pem_data = None
+
+        # 1. 优先使用用户上传的公钥内容
+        if self.pkey:
+            self.logger.info("使用用户上传的RSA公钥进行加密")
+            pem_data = self.pkey if isinstance(self.pkey, bytes) else self.pkey.encode('utf-8')
+        else:
+            # 2. 尝试从环境变量获取公钥路径
             public_key_path = os.environ.get('AISHU_PUBLIC_KEY_PATH')
-            if public_key_path:
-                self.logger.debug(f"从环境变量获取到公钥路径: {public_key_path}")
-            
-            # 3. 尝试从Variables实例的配置中获取（应用级配置）
+
+            # 3. 尝试从配置获取
             if not public_key_path:
                 try:
-                    # 使用Variables单例获取配置
                     variables = Variables()
-                    # 支持点号分隔的多层级配置路径，兼容Java示例的配置风格
                     config_section = variables.conf
-                    self.logger.debug(f"当前配置根节点类型: {type(config_section).__name__}")
-                    
                     for key in 'aishu.encryption.public_key_path'.split('.'):
                         if isinstance(config_section, dict) and key in config_section:
                             config_section = config_section[key]
-                            self.logger.debug(f"获取配置层级 {key}: {config_section}")
                         else:
-                            self.logger.debug(f"配置层级 {key} 不存在")
                             config_section = None
                             break
                     public_key_path = config_section
-                except Exception as config_err:
-                    self.logger.debug(f"从配置中获取公钥路径失败: {str(config_err)}")
-            
-            # 4. 使用默认路径（应用内配置）
-            if not public_key_path:
-                # 参考Java示例，使用应用根目录下的certs文件夹
-                variables = Variables()
-                public_key_path = os.path.join(variables.certs, 'aishu_public_key.pem')
-                self.logger.debug(f"使用默认公钥路径: {public_key_path}")
-            
-            self.logger.info(f"使用RSA公钥路径: {public_key_path}")
-            
-            # 检查公钥文件是否存在
-            if os.path.exists(public_key_path):
-                file_size = os.path.getsize(public_key_path)
-                self.logger.debug(f"公钥文件大小: {file_size} 字节")
+                except Exception:
+                    pass
+
+            if public_key_path:
+                self.logger.info(f"使用RSA公钥路径: {public_key_path}")
+                with open(public_key_path, 'rb') as f:
+                    pem_data = f.read()
             else:
-                self.logger.warning(f"公钥文件不存在，但仍尝试加载: {public_key_path}")
-            
-            # 创建Asymmetric实例并使用公钥加密
-            crypto = Asymmetric(public_key_path)
-            encrypted_password = crypto.encrypt(password)
-            self.logger.debug(f"密码RSA加密成功，加密后长度: {len(encrypted_password)} 字符")
-            return encrypted_password
-        except FileNotFoundError as e:
-            self.logger.error(f"RSA公钥文件未找到: {public_key_path} - {str(e)}")
-            # 加密失败时回退到base64编码作为临时方案
-            import base64
-            fallback_enc = base64.b64encode(password.encode('utf-8')).decode('utf-8')
-            self.logger.warning(f"RSA加密失败，回退到base64编码: {fallback_enc[:20]}...")
-            return fallback_enc
-        except Exception as e:
-            self.logger.error(f"RSA加密失败: {str(e)}", exc_info=True)
-            # 加密失败时回退到base64编码作为临时方案
-            import base64
-            fallback_enc = base64.b64encode(password.encode('utf-8')).decode('utf-8')
-            self.logger.warning(f"RSA加密失败，回退到base64编码: {fallback_enc[:20]}...")
-            return fallback_enc
+                self.logger.info("使用内置v5.0默认RSA公钥")
+                pem_data = (
+                    b"-----BEGIN PUBLIC KEY-----\n"
+                    b"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC7JL0DcaMUHumSdhxXTxqiABBC\n"
+                    b"DERhRJIsAPB++zx1INgSEKPGbexDt1ojcNAc0fI+G/yTuQcgH1EW8posgUni0mcT\n"
+                    b"E6CnjkVbv8ILgCuhy+4eu+2lApDwQPD9Tr6J8k21Ruu2sWV5Z1VRuQFqGm/c5vaT\n"
+                    b"OQE5VFOIXPVTaa25mQIDAQAB\n"
+                    b"-----END PUBLIC KEY-----"
+                )
+
+        public_key = serialization.load_pem_public_key(pem_data)
+        cipherdata = public_key.encrypt(
+            plaintext=password.encode('utf-8'),
+            padding=asym_padding.PKCS1v15()
+        )
+        return base64.b64encode(cipherdata).decode('ascii')
     
     def is_authenticated(self) -> bool:
         """检查是否已认证"""
@@ -375,28 +353,27 @@ class AiShu(Client):
         # 处理内部调用：获取完整节点列表
         nodes = list()
         
-        # 执行认证
-        if not self.auth.authenticate():
-            raise Exception("爱数网盘认证失败")
-            
+        if not self.auth.is_authenticated():
+            self.auth.authenticate()
+
         try:
-            # 爱数5.0版本API - 使用正确的端口和端点
-            # 根据url的协议动态选择http或https
-            protocol = "https" if self.url.startswith("https://") else "http"
-            # 提取纯IP/域名，移除协议前缀
-            base_host = self.url.replace("https://", "").replace("http://", "")
-            api_url = f"{protocol}://{base_host}:9123/v1/entrydoc"
-            
-            # 参数通过URL查询参数传递
-            params = {
-                "method": "get",
-                "userid": self.auth.userid,
-                "tokenid": self.auth.tokenid
-            }
-            
-            # 添加folder_id参数（始终添加，根目录使用"root"）
-            params["folder_id"] = folder_id or "root"
-            
+            # v5.0: 根目录用 entrydoc(9998)，子目录用 dir?method=list(9123)
+            if not folder_id or folder_id == 'root':
+                api_url = _build_api_url(self.url, 9998, '/v1/entrydoc')
+                params = {
+                    "method": "get",
+                    "userid": self.auth.userid,
+                    "tokenid": self.auth.tokenid,
+                }
+            else:
+                api_url = _build_api_url(self.url, 9123, '/v1/dir')
+                params = {
+                    "method": "list",
+                    "userid": self.auth.userid,
+                    "tokenid": self.auth.tokenid,
+                    "docid": folder_id,
+                }
+
             # 添加分页参数
             params["page"] = page
             params["limit"] = limit
@@ -491,33 +468,35 @@ class AiShu(Client):
                 self.logger.warning(f"递归深度超过限制({max_depth})，停止递归")
                 return []
                 
-            # 执行认证
-            if not self.auth.authenticate():
-                raise Exception("爱数网盘认证失败")
-            
+            if not self.auth.is_authenticated():
+                self.auth.authenticate()
+
             # 处理路径或节点参数
             folder_id = path_or_node
             current_parent_path = parent_path
-            
+
             if isinstance(path_or_node, MutableMapping):
                 folder_id = path_or_node.get('id', path_or_node.get('path', path_or_node.get('name', 'root')))
                 current_parent_path = path_or_node.get('path', parent_path)
-            
+
             self.logger.info(f"获取目录结构: {folder_id}, 父路径: {current_parent_path}, 深度: {depth}")
-            
-            # 调用API获取节点列表
-            # 根据url的协议动态选择http或https
-            protocol = "https" if self.url.startswith("https://") else "http"
-            # 提取纯IP/域名，移除协议前缀
-            base_host = self.url.replace("https://", "").replace("http://", "")
-            api_url = f"{protocol}://{base_host}:9123/v1/entrydoc"
-            
-            params = {
-                "method": "get",
-                "userid": self.auth.userid,
-                "tokenid": self.auth.tokenid,
-                "folder_id": folder_id if folder_id and folder_id != 'root' else "root"
-            }
+
+            # v5.0: 根目录用 entrydoc(9998)，子目录用 dir?method=list(9123)
+            if not folder_id or folder_id == 'root':
+                api_url = _build_api_url(self.url, 9998, '/v1/entrydoc')
+                params = {
+                    "method": "get",
+                    "userid": self.auth.userid,
+                    "tokenid": self.auth.tokenid,
+                }
+            else:
+                api_url = _build_api_url(self.url, 9123, '/v1/dir')
+                params = {
+                    "method": "list",
+                    "userid": self.auth.userid,
+                    "tokenid": self.auth.tokenid,
+                    "docid": folder_id,
+                }
             
             # 从节点中获取过滤参数（如果提供）
             if isinstance(path_or_node, MutableMapping):
@@ -545,7 +524,7 @@ class AiShu(Client):
                 doc_name = doc.get('docname', 'unknown')
                 
                 # 构建节点基本信息
-                docid = doc.get('docid', str(time.time()))
+                docid = doc.get('docid', '')
                 
                 # 构建完整路径
                 if current_parent_path == "" or current_parent_path == "/":
@@ -602,12 +581,8 @@ class AiShu(Client):
                 if not self.auth.authenticate():
                     raise AuthenticationException("爱数网盘认证失败")
 
-            # 爱数5.0版本文件下载API - 使用正确端口和端点
-            # 根据url的协议动态选择http或https
-            protocol = "https" if self.url.startswith("https://") else "http"
-            # 提取纯IP/域名，移除协议前缀
-            base_host = self.url.replace("https://", "").replace("http://", "")
-            download_url = f"{protocol}://{base_host}:9123/v1/file"
+            # 爱数5.0版本文件下载API
+            download_url = _build_api_url(self.url, 9123, '/v1/file')
             
             # 构造下载请求参数
             params = {
@@ -685,18 +660,19 @@ class AiShu(Client):
             )
             
             download_resp.raise_for_status()  # 自动处理HTTP错误
-            
-            # 读取文件内容
-            file_stream = io.BytesIO()
+
+            # 流式写入临时文件
+            f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
             for chunk in download_resp.iter_content(chunk_size=8192):
                 if chunk:
-                    file_stream.write(chunk)
-            
-            file_stream.seek(0)
-            file_content = file_stream.getvalue()
-            
-            self.logger.info(f"成功下载文件: {node.get('name')}, 大小: {len(file_content)} bytes")
-            return file_content
+                    f.write(chunk)
+
+            f.seek(0)
+            file_size = f.tell()
+            f.seek(0)
+
+            self.logger.info(f"成功下载文件: {node.get('name')}, 大小: {file_size} bytes")
+            return f
             
         except requests.exceptions.RequestException as e:
             self.logger.error(f"文件下载网络异常: {str(e)}")
@@ -761,40 +737,51 @@ class AiShuIterator(Iterator):
     基于5.0版本API，严格遵循现有Iterator基类的设计规范
     """
     # 构造函数
-    def __init__(self, auth, resources={}):
+    @staticmethod
+    def _mask_sensitive_info(auth):
+        """脱敏认证信息用于日志输出"""
+        if not isinstance(auth, dict):
+            return auth
+        masked = dict(auth)
+        for key in ('password', 'pkey'):
+            if key in masked:
+                masked[key] = '***'
+        return masked
+
+    def __init__(self, auth, resources=None):
         self.logger = logging.getLogger(self.__class__.__name__)
         # 记录接收到的所有参数
         self.logger.info(f"AiShuIterator初始化，接收到auth参数：{self._mask_sensitive_info(auth)}")
         self.logger.info(f"AiShuIterator初始化，接收到resources参数：{resources}")
-        
+
         self.auth = auth
         self.client = AiShu(**self.auth)
-        self.resources = resources
+        self.resources = resources or {}
         self.page = 1
         self.is_truncated = True
         self.stack = list()
         self.node = dict()
         # 初始化基础参数，从resources中提取过滤条件
-        self.folder_ids = resources.get('folder_id', [])
+        self.folder_ids = self.resources.get('folder_id', [])
         if not isinstance(self.folder_ids, list):
             self.folder_ids = [self.folder_ids]
         if not self.folder_ids:
             self.folder_ids = ['root']
-        
+
         # 将所有文件夹ID添加到栈中，支持处理多个文件夹
         for folder_id in self.folder_ids:
             folder_node = {
                 'id': folder_id,
                 'name': folder_id if folder_id != 'root' else '根目录',
                 'path': '/' if folder_id == 'root' else f'/{folder_id}',
-                'type': 'directory',
+                'type': 'dir',
                 'children': None
             }
             self.stack.append(folder_node)
-        self.start_time = resources.get('start_time', None)
-        self.end_time = resources.get('end_time', None)
-        self.file_type = resources.get('file_type', None)
-        self.page_size = resources.get('page_size', 100)
+        self.start_time = self.resources.get('start_time', None)
+        self.end_time = self.resources.get('end_time', None)
+        self.file_type = self.resources.get('file_type', None)
+        self.page_size = self.resources.get('page_size', 100)
         
         self.logger.info("初始化爱数网盘5.0迭代器")
         
@@ -858,7 +845,32 @@ class AiShuIterator(Iterator):
         """
         self.stack.extend(nodes)
         self.logger.debug(f"添加节点到栈中，栈大小: {len(self.stack)}")
-    
+
+    def close(self):
+        if hasattr(self, 'client') and self.client:
+            try:
+                if hasattr(self.client, 'session'):
+                    self.client.session.close()
+            except Exception:
+                pass
+            self.client = None
+        if hasattr(self, 'producer') and self.producer:
+            try:
+                self.producer.close()
+            except Exception:
+                pass
+            self.producer = None
+
+    def __del__(self):
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
     def __next__(self):
         """
         迭代逻辑 - 支持多个目录或文件的处理
@@ -909,17 +921,18 @@ class AiShuIterator(Iterator):
             
             # 1. 下载文件内容
             self.logger.debug(f"调用client.get_file()下载文件: {file_name}")
-            file_content = self.client.get_file(node)
-            file_size = len(file_content)
-            self.logger.info(f"文件下载成功: {file_name}, 大小: {file_size} 字节")
-            
+            f = self.client.get_file(node)
+
             # 2. 计算MD5
             self.logger.debug(f"计算文件MD5: {file_name}")
             md5 = hashlib.md5()
-            md5.update(file_content)
+            for chunk in iter(lambda: f.read(8192), b''):
+                md5.update(chunk)
             file_md5 = md5.hexdigest()
             node['md5'] = file_md5
-            self.logger.info(f"MD5计算完成: {file_md5}")
+            f.seek(0)
+            file_size = node.get('size', 0)
+            self.logger.info(f"文件下载成功: {file_name}, MD5: {file_md5}")
             
             # 3. 准备文件信息用于存储和消息通知
             file_info = {
@@ -970,7 +983,7 @@ class AiShuIterator(Iterator):
                         
                         # 使用MinioStorage的__call__方法进行存储
                         self.logger.debug(f"调用self.storage()存储文件: {file_name}")
-                        self.storage(storage_node, file_content)
+                        self.storage(storage_node, f)
                         
                         self.logger.info(f"文件存储成功: {file_info['name']}, 存储类型: {data_type}")
                         
@@ -999,7 +1012,7 @@ class AiShuIterator(Iterator):
             else:
                 self.logger.debug("存储功能未启用，跳过存储步骤")
             
-            return file_content
+            return f
             
         except Exception as e:
             self.logger.error(f"获取文件失败: {str(e)}", exc_info=True)

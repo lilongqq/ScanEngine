@@ -116,7 +116,11 @@ class SeeyonDict(UserDict):
             return self.data.get('last_write_time')
         elif item == 'diff':
             if 'ctp_file_id' in self.data:
+                last_write_time = self.data.get('last_write_time')
+                if last_write_time is not None:
+                    return gen_key(ctp_file_id=self.data['ctp_file_id'], last_write_time=last_write_time)
                 return gen_key(ctp_file_id=self.data['ctp_file_id'])
+            raise KeyError(item)
         return self.data[item]
 
     def __contains__(self, item):
@@ -147,12 +151,13 @@ class SeeyonAuth:
             return self.token
 
         with self.lock:
+            current_time = time.time()
             if self.token and (current_time - self.last_refresh_time) < (self.token_expires_in - 60):
                 return self.token
             try:
                 resp = requests.post(
                     f'{self.base_url}/seeyon/rest/token/',
-                    json={'userName': self.userName, 'password': self.password, 'loginName': self.login_name},
+                    json={'userName': self.userName, 'password': self.password, 'loginName': self.login_name or self.userName},
                     headers={'Content-Type': 'application/json'},
                     verify=False,
                     timeout=30
@@ -218,35 +223,38 @@ class SeeyonClient(Client):
 
     def get_file(self, node):
         ctp_file_id = node.get('ctp_file_id')
-        token = node.get('token') or self.token or self.auth.get_token()
-        params = {'fileName': node.get('file_name', ''), 'token': token}
         url = f'{self.base_url}/seeyon/rest/attachment/file/{ctp_file_id}'
-        # [DEBUG-SEEYON] 下载封装日志
-        self.logger.info('[DEBUG-SEEYON][get_file] 下载请求: ctp_file_id=%s, file_name=%s, url=%s, token_present=%s',
-                         ctp_file_id, node.get('file_name'), url, bool(token))
-        f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
-        resp = self.session.get(
-            url,
-            params=params,
-            stream=True,
-            verify=False,
-            timeout=(10, 300)
-        )
-        self.logger.info('[DEBUG-SEEYON][get_file] 下载响应: status=%s, headers=%s',
-                         resp.status_code, dict(resp.headers))
-        if resp.status_code == 200:
-            for chunk in resp.iter_content(chunk_size=8192):
-                f.write(chunk)
-            f.seek(0)
-            self.logger.info('[DEBUG-SEEYON][get_file] 下载成功: ctp_file_id=%s, file_name=%s', ctp_file_id, node.get('file_name'))
-            return f
-        f.close()
-        if resp.status_code == 401:
-            self.auth.token = None
-            self.auth.last_refresh_time = 0
-        self.logger.error('[DEBUG-SEEYON][get_file] 下载失败: ctp_file_id=%s, status=%s, resp_body=%s',
-                          ctp_file_id, resp.status_code, resp.text[:500])
-        raise Exception(f'file download failed: {resp.status_code}')
+        for attempt in range(2):
+            token = node.get('token') or self.token or self.auth.get_token()
+            params = {'fileName': node.get('file_name', ''), 'token': token}
+            self.logger.debug('[DEBUG-SEEYON][get_file] 下载请求: ctp_file_id=%s, file_name=%s, url=%s, attempt=%s',
+                              ctp_file_id, node.get('file_name'), url, attempt)
+            f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
+            resp = self.session.get(
+                url,
+                params=params,
+                stream=True,
+                verify=False,
+                timeout=(10, 300)
+            )
+            self.logger.debug('[DEBUG-SEEYON][get_file] 下载响应: status=%s, headers=%s',
+                              resp.status_code, dict(resp.headers))
+            if resp.status_code == 200:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                f.seek(0)
+                self.logger.debug('[DEBUG-SEEYON][get_file] 下载成功: ctp_file_id=%s, file_name=%s', ctp_file_id, node.get('file_name'))
+                return f
+            f.close()
+            if resp.status_code == 401 and attempt == 0:
+                self.auth.token = None
+                self.auth.last_refresh_time = 0
+                self.logger.warning('[DEBUG-SEEYON][get_file] 401 token 过期, 刷新后重试: ctp_file_id=%s', ctp_file_id)
+                continue
+            self.logger.error('[DEBUG-SEEYON][get_file] 下载失败: ctp_file_id=%s, status=%s, resp_body=%s',
+                              ctp_file_id, resp.status_code, resp.text[:500])
+            raise Exception(f'file download failed: {resp.status_code}')
+        raise Exception(f'file download failed after retry: ctp_file_id={ctp_file_id}')
 
     def _get_headers(self):
         return {
@@ -313,6 +321,10 @@ class SeeyonIterator(Iterator):
 
         # 从 auth 中提取 db_* 前缀字段，去掉前缀后作为 DBProxy auth
         dbp_auth = {k[3:]: v for k, v in auth.items() if k.startswith('db_')}
+        if 'dbtype' in dbp_auth:
+            dbp_auth['dbtype'] = dbp_auth['dbtype'].lower()
+        safe_dbp_auth = {k: ('***' if k == 'password' else v) for k, v in dbp_auth.items()}
+        self.logger.info('[DEBUG-SEEYON][SeeyonIterator] dbp_auth: %s', safe_dbp_auth)
         self._schema = schema_name
         self._table = mysql_table
         self._where = auth.get('ctp_where', None)
@@ -378,13 +390,24 @@ class SeeyonIterator(Iterator):
     def __bool__(self):
         return bool(self.stack) or not self._db_exhausted
 
-    def __del__(self):
+    def close(self):
         if self._db_client:
             try:
                 self._db_client.logout()
                 self._db_client.close()
             except Exception:
                 pass
+            self._db_client = None
+
+    def __del__(self):
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
 
     def get_nodes(self, node):
         return self.client.get_nodes(node)
@@ -395,9 +418,11 @@ class SeeyonIterator(Iterator):
     def get_file(self, node):
         # [DEBUG-SEEYON] 扫描任务内部调用 get_file 时的 node 内容
         self.logger.info('[DEBUG-SEEYON][SeeyonIterator.get_file] ctp_file_id=%s, file_name=%s',
-                         node.data.get('ctp_file_id'), node.data.get('file_name'))
+                         node.get('ctp_file_id'), node.get('file_name'))
         f = self.client.get_file(node)
-        md5 = hashlib.file_digest(f, 'md5')
+        md5 = hashlib.md5()
+        for chunk in iter(lambda: f.read(8192), b''):
+            md5.update(chunk)
         node['md5'] = md5.hexdigest()
         f.seek(0)
         return f

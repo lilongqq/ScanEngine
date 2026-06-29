@@ -1042,6 +1042,256 @@ class S3One(S3):
         self.logger = logging.getLogger(self.__class__.__name__)
 
 
+class AWSCloud(Client):
+
+    def __init__(self, ak, sk, endpoint=None, region=None, verify=True, **kwargs):
+        self.variables = Variables()
+        self.config = Config(
+            s3={
+                'addressing_style': 'auto'
+            },
+            **self.variables.s3['config']
+        )
+        self.client = boto3.client(
+            's3',
+            aws_access_key_id=ak,
+            aws_secret_access_key=sk,
+            region_name=region,
+            verify=verify,
+            config=self.config
+        )
+
+    @staticmethod
+    def __bucket_name_and_prefix(path):
+        path_tuple = path.split('/', 1)
+        if len(path_tuple) == 2:
+            bucket_name, prefix = path_tuple
+        else:
+            bucket_name = path
+            prefix = ''
+        return bucket_name, prefix
+
+    @singledispatchmethod
+    def get_nodes(self, *args, **kwargs):
+        raise NotImplemented
+
+    @get_nodes.register(MutableMapping)
+    def _(self, node):
+        nodes = list()
+        if node and (
+                path := node.get('path', node['name'])
+        ):
+            bucket_name, prefix = self.__bucket_name_and_prefix(path)
+            if 'next_marker' in node:
+                resp = self.client.list_objects(
+                    Bucket=bucket_name,
+                    Prefix=prefix,
+                    Delimiter='/',
+                    Marker=node['next_marker']
+                )
+            else:
+                resp = self.client.list_objects(
+                    Bucket=bucket_name,
+                    Prefix=prefix,
+                    Delimiter='/'
+                )
+            if 'CommonPrefixes' in resp:
+                for item in resp['CommonPrefixes']:
+                    node = dict()
+                    node['type'] = 'dir'
+                    node['name'] = item['Prefix'].replace(prefix, '')
+                    node['path'] = '/'.join([bucket_name, item['Prefix']])
+                    node['key'] = item['Prefix']
+                    node['children'] = []
+                    nodes.append(node)
+            if 'Contents' in resp:
+                for item in resp['Contents']:
+                    if not item['Key'].endswith('/'):
+                        node = dict()
+                        node['type'] = 'file'
+                        node['name'] = os.path.basename(item['Key'])
+                        node['path'] = '/'.join([bucket_name, item['Key']])
+                        node['etag'] = item['ETag']
+                        node['key'] = item['Key']
+                        node['last_write_time'] = item['LastModified'].timestamp()
+                        node['size'] = item['Size']
+                        node['storage_class'] = item['StorageClass']
+                        node['display_name'] = item.get('Owner', {}).get('DisplayName', '')
+                        node['owner_id'] = item.get('Owner', {}).get('ID', '')
+                        nodes.append(node)
+            if resp['IsTruncated']:
+                node = dict()
+                node['type'] = 'file'
+                node['name'] = '...'
+                node['path'] = path
+                node['next_marker'] = resp['NextMarker']
+                node['sibling'] = []
+                nodes.append(node)
+        else:
+            resp = self.client.list_buckets()
+            for bucket in resp['Buckets']:
+                node = dict()
+                node['type'] = 'dir'
+                node['creation_date'] = bucket['CreationDate'].isoformat()
+                node['name'] = bucket['Name']
+                node['path'] = bucket['Name']
+                node['children'] = []
+                try:
+                    loc_resp = self.client.get_bucket_location(Bucket=bucket['Name'])
+                except Exception:
+                    node['location'] = ''
+                else:
+                    node['location'] = loc_resp['LocationConstraint'] or ''
+                nodes.append(node)
+        return nodes
+
+    @get_nodes.register(str)
+    def _(self, path):
+        nodes = list()
+        if path:
+            bucket_name, prefix = self.__bucket_name_and_prefix(path)
+            resp = self.client.list_objects(
+                Bucket=bucket_name,
+                Prefix=prefix,
+                Delimiter='/'
+            )
+            if 'CommonPrefixes' in resp:
+                for item in resp['CommonPrefixes']:
+                    node = dict()
+                    node['type'] = 'dir'
+                    node['name'] = item['Prefix'].replace(prefix, '')
+                    node['path'] = '/'.join([bucket_name, item['Prefix']])
+                    node['key'] = item['Prefix']
+                    node['children'] = []
+                    nodes.append(node)
+            if 'Contents' in resp:
+                for item in resp['Contents']:
+                    if not item['Key'].endswith('/'):
+                        node = dict()
+                        node['type'] = 'file'
+                        node['name'] = os.path.basename(item['Key'])
+                        node['path'] = '/'.join([bucket_name, item['Key']])
+                        node['etag'] = item['ETag']
+                        node['key'] = item['Key']
+                        node['last_write_time'] = item['LastModified'].timestamp()
+                        node['size'] = item['Size']
+                        node['storage_class'] = item['StorageClass']
+                        node['display_name'] = item.get('Owner', {}).get('DisplayName', '')
+                        node['owner_id'] = item.get('Owner', {}).get('ID', '')
+                        nodes.append(node)
+            if resp['IsTruncated']:
+                node = dict()
+                node['type'] = 'file'
+                node['name'] = '...'
+                node['path'] = path
+                node['next_marker'] = resp['NextMarker']
+                node['sibling'] = []
+                nodes.append(node)
+        else:
+            resp = self.client.list_buckets()
+            for bucket in resp['Buckets']:
+                node = dict()
+                node['type'] = 'dir'
+                node['creation_date'] = bucket['CreationDate'].isoformat()
+                node['name'] = bucket['Name']
+                node['path'] = bucket['Name']
+                node['children'] = []
+                try:
+                    loc_resp = self.client.get_bucket_location(Bucket=bucket['Name'])
+                except Exception:
+                    node['location'] = ''
+                else:
+                    node['location'] = loc_resp['LocationConstraint'] or ''
+                nodes.append(node)
+        return nodes
+
+    @singledispatchmethod
+    def get_file(self, *args, **kwargs):
+        raise NotImplemented
+
+    @get_file.register(MutableMapping)
+    def _(self, node):
+        path = node.get('path', node['name'])
+        bucket_name, key = self.__bucket_name_and_prefix(path)
+        resp = self.client.get_object(Bucket=bucket_name, Key=key)
+        f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
+        for chunk in resp['Body']:
+            f.write(chunk)
+        f.seek(0)
+        return f
+
+    @get_file.register(str)
+    def _(self, path):
+        bucket_name, key = self.__bucket_name_and_prefix(path)
+        resp = self.client.get_object(Bucket=bucket_name, Key=key)
+        f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
+        for chunk in resp['Body']:
+            f.write(chunk)
+        f.seek(0)
+        return f
+
+    @singledispatchmethod
+    def delete_file(self, *args, **kwargs):
+        raise NotImplemented
+
+    @delete_file.register(MutableMapping)
+    def _(self, node):
+        path = node.get('path', node['name'])
+        bucket_name, key = self.__bucket_name_and_prefix(path)
+        resp = self.client.delete_object(Bucket=bucket_name, Key=key)
+        return resp
+
+    @delete_file.register(str)
+    def _(self, path):
+        bucket_name, key = self.__bucket_name_and_prefix(path)
+        resp = self.client.delete_object(Bucket=bucket_name, Key=key)
+        return resp
+
+    @singledispatchmethod
+    def put_file(self, *args, **kwargs):
+        raise NotImplemented
+
+    @put_file.register(MutableMapping)
+    def _(self, node, f):
+        path = node.get('path', node['name'])
+        bucket_name, key = self.__bucket_name_and_prefix(path)
+        resp = self.client.put_object(Bucket=bucket_name, Body=f, Key=key)
+        return resp
+
+    @put_file.register(str)
+    def _(self, path, f):
+        bucket_name, key = self.__bucket_name_and_prefix(path)
+        resp = self.client.put_object(Bucket=bucket_name, Body=f, Key=key)
+        return resp
+
+    def empty_file(self, node):
+        f = io.BytesIO()
+        self.put_file(node, f)
+
+    def store_file(self, node, f):
+        path = os.path.join(node.get('sepPath', ''), node['name'])
+        self.put_file(path, f)
+
+    def __bool__(self):
+        return True
+
+    def __del__(self):
+        return True
+
+
+class AWSCloudBatch(AWSCloud):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+@weak_cache
+class AWSCloudOne(AWSCloud):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
 def factory(cloud, ak, sk, endpoint, **kwargs):
     cloud_map = {
         'AliCloud': AliCloudOne,
@@ -1049,7 +1299,8 @@ def factory(cloud, ak, sk, endpoint, **kwargs):
         'KsCloud': S3One,
         'HuaWeiCloud': HuaWeiCloudOne,
         'TencentCloud': TencentCloudOne,
-        'S3': S3One
+        'S3': S3One,
+        'AWS': AWSCloudOne
     }
     client = cloud_map.get(cloud)(ak=ak, sk=sk, endpoint=endpoint, **kwargs)
     return client
@@ -1064,7 +1315,8 @@ class OSSIterator(Iterator):
             'KsCloud': S3,
             'HuaWeiCloud': HuaWeiCloudBatch,
             'TencentCloud': TencentCloudBatch,
-            'S3': S3
+            'S3': S3,
+            'AWS': AWSCloudBatch
         }
         self.auth = auth
         self.client = self.factory(**self.auth)

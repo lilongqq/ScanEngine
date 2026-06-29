@@ -205,7 +205,6 @@ class ScanEngine(object):
             result = browser.get_nodes(
                 node['path']
             ) if 'path' in node else browser.get_nodes(node['node'])
-            self.logger.info(result)
             is_include_file = node.get('isIncludeFile', 1)
             if isinstance(result, list):
                 result1 = [

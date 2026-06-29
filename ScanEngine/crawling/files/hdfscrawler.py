@@ -37,8 +37,10 @@ class HDFSDict(UserDict):
 
 class HDFS(object):
 
-    def __init__(self, url, username='root'):
-        self.client = SecureClient(url, user=username, verify=False)
+    def __init__(self, url, username='root', cert=None, verify_ssl=False, **kwargs):
+        if isinstance(verify_ssl, str):
+            verify_ssl = verify_ssl.lower() == 'true'
+        self.client = SecureClient(url, user=username, cert=cert, verify=verify_ssl)
 
     @singledispatchmethod
     def get_nodes(self, *args, **kwargs):
@@ -60,17 +62,25 @@ class HDFS(object):
     @get_nodes.register(str)
     def _(self, path):
         nodes = list()
+        if not path:
+            path = '/'
         if path.endswith('/'):
             resp = self.client.list(path, status=True)
             for name, status in resp:
                 node = self.format(path, name, status)
                 nodes.append(node)
         else:
-            name = os.path.basename(path)
             status = self.client.status(path)
-            path = os.path.dirname(path)
-            node = self.format(path, name, status)
-            nodes.append(node)
+            if status['type'] == 'DIRECTORY':
+                resp = self.client.list(path, status=True)
+                for name, status in resp:
+                    node = self.format(path, name, status)
+                    nodes.append(node)
+            else:
+                name = os.path.basename(path)
+                dir_path = os.path.dirname(path)
+                node = self.format(dir_path, name, status)
+                nodes.append(node)
         return nodes
 
     def get_file(self, node={}):
@@ -92,7 +102,7 @@ class HDFS(object):
     def format(path, name, status):
         node = dict()
         if status['type'] == 'DIRECTORY':
-            node['type'] = 'file'
+            node['type'] = 'dir'
             node['name'] = name
             node['childrenNum'] = status['childrenNum']
             node['fileId'] = status['fileId']

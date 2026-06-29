@@ -10,10 +10,11 @@ class SecureClient(Client):
         session = Session()
         session.params['user.name'] = user
         if verify:
-            if ',' in cert:
-                session.cert = [path.strip() for path in cert.split(',')]
-            else:
-                session.cert = cert
+            if cert:
+                if ',' in cert:
+                    session.cert = [path.strip() for path in cert.split(',')]
+                else:
+                    session.cert = cert
         else:
             session.verify = verify
         super(SecureClient, self).__init__(url, session=session, **kwargs)

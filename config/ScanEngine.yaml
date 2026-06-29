@@ -40,6 +40,9 @@ logging:
       handlers:
         - flask
       propagate: false
+    hdfs:
+      level: WARNING
+      propagate: true
     paramiko:
       level: WARNING
       propagate: true
@@ -172,6 +175,8 @@ kafka:
     reconnect_backoff_ms: 1000
     max_block_ms: 600000
     request_timeout_ms: 600000
+    acks: all
+    enable_idempotence: true
     delivery_timeout_ms: 630000
   consumer:
     bootstrap_servers: kafka:9092
