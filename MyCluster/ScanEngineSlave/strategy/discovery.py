@@ -104,36 +104,41 @@ class Discovery(Strategy):
         self.pool = BoundaryThreadPoolExecutor(**self.variables.executor)
 
     def start(self):
-        self.run()
-        count, db_records, size = self.redis.hmget(
-            self.stats_name,
-            ['count', 'db_records', 'size']
-        )
-        self.logger.info(
-            '''
-            identity: {identity}
-            rules_id: {rules_id}
-            count: {count}
-            db_records: {db_records}
-            size: {size}
-            '''.format(
-                identity=self.identity,
-                rules_id=self.rules_id,
-                count=int(count) if count else 0,
-                db_records=int(db_records) if db_records else 0,
-                size=int(size) if size else 0
+        try:
+            self.run()
+            count, db_records, size = self.redis.hmget(
+                self.stats_name,
+                ['count', 'db_records', 'size']
             )
-        )
-        subtasks = self.redis.hincrby(self.stats_name, 'subtasks', -1)
-        if not subtasks:
-            self.redis.hset(self.stats_name, 'status', 'stop')
-            self.report_task_completed()
+            self.logger.info(
+                '''
+                identity: {identity}
+                rules_id: {rules_id}
+                count: {count}
+                db_records: {db_records}
+                size: {size}
+                '''.format(
+                    identity=self.identity,
+                    rules_id=self.rules_id,
+                    count=int(count) if count else 0,
+                    db_records=int(db_records) if db_records else 0,
+                    size=int(size) if size else 0
+                )
+            )
+            subtasks = self.redis.hincrby(self.stats_name, 'subtasks', -1)
+            if not subtasks:
+                self.redis.hset(self.stats_name, 'status', 'stop')
+                self.report_task_completed()
+        finally:
+            self.pause_event.close()
 
     def run(self):
+        consecutive_errors = 0
         while self.bool:
             try:
                 self.pause_event.wait(180)
                 message = next(self.consumer)
+                consecutive_errors = 0
                 node = message.value
                 if node['type'] == 'stop_iteration':
                     raise StopIteration
@@ -149,7 +154,13 @@ class Discovery(Strategy):
                 self.logger.info('shutdown')
                 break
             except Exception:
+                consecutive_errors += 1
                 self.logger.info(traceback.format_exc())
+                if consecutive_errors >= 50:
+                    self.logger.error('too many consecutive errors (%d), stopping', consecutive_errors)
+                    break
+                elif consecutive_errors >= 5:
+                    time.sleep(min(consecutive_errors * 0.5, 30))
         else:
             self.consumer.seek_to_last()
             while True:
@@ -187,7 +198,7 @@ class Discovery(Strategy):
             node['from'] = 'se'
             if isinstance(exception, FilterError):
                 node['status'] = exception.status
-                self.logger.error(exception)
+                self.logger.debug(exception)
                 self.producer.send(
                     topic=self.variables.kafka['filter'],
                     value=node.data

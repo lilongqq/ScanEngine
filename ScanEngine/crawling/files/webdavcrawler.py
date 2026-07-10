@@ -4,6 +4,7 @@ import logging
 import io
 import hashlib
 import os.path
+import posixpath
 from tempfile import SpooledTemporaryFile
 from collections.abc import MutableMapping
 from collections import UserDict
@@ -131,7 +132,7 @@ class WebDav(Client):
         self.put_file(node, f)
 
     def store_file(self, node, f):
-        path = os.path.join(node.get('sepPath', ''), node['name'])
+        path = posixpath.join(node.get('sepPath', ''), node['name'])
         self.put_file(path, f)
 
     @staticmethod

@@ -19,7 +19,7 @@ class RedEvent(object):
         else:
             self.event.clear()
         self.pubsub.subscribe(**{self.variables.redis['event']: self.callback})
-        self.pubsub.run_in_thread(daemon=True)
+        self._thread = self.pubsub.run_in_thread(sleep_time=0.1, daemon=True)
 
     def is_set(self):
         pipeline = self.redis.pipeline()
@@ -78,3 +78,14 @@ class RedEvent(object):
                     self.event.set()
                 else:
                     self.event.clear()
+
+    def close(self):
+        try:
+            self._thread.stop()
+        except Exception:
+            pass
+        try:
+            self.pubsub.unsubscribe()
+            self.pubsub.close()
+        except Exception:
+            pass

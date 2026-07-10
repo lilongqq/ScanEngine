@@ -181,14 +181,20 @@ class Discovery(Strategy):
 
     def start(self):
         self.redis.hset(self.stats_name, 'status', 'start')
+        self.logger.info('report_task_start')
         self.report_task_start()
-        self.run()
+        self.logger.info('run start')
+        try:
+            self.run()
+        finally:
+            self.pause_event.close()
         self.report_task_completed()
         self.redis.hset(self.stats_name, 'status', 'stop')
 
     def run(self):
         while self.bool:
             try:
+                self.logger.debug('waiting pause_event')
                 self.pause_event.wait(180)
                 node, stream = next(self.iterator)
                 self.zero_chain()
@@ -205,6 +211,7 @@ class Discovery(Strategy):
                 break
             except Exception:
                 self.logger.error(traceback.format_exc())
+                time.sleep(0.1)
         self.semaphore.acquire()
         time.sleep(10)
         count, db_records, binary_count, size = self.redis.hmget(
@@ -249,7 +256,7 @@ class Discovery(Strategy):
             node['from'] = 'se'
             if isinstance(exception, FilterError):
                 node['status'] = exception.status
-                self.logger.error(exception)
+                self.logger.debug('%s  name: %s  path: %s', exception, node.data.get('name', ''), node.data.get('path', ''))
                 self.producer.send(
                     topic=self.variables.kafka['filter'],
                     value=node.data

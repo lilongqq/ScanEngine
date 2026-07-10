@@ -33,11 +33,13 @@ class BytesParser(parser.Parser):
     @parse.register(FileIO)
     @parse.register(SpooledTemporaryFile)
     def _(self, fp, headersonly=False):
+        raw = fp
         fp = TextIOWrapper(fp, encoding='ascii', errors='surrogateescape')
         try:
             return self.parse(fp, headersonly)
         finally:
             fp.detach()
+            raw.seek(0)
 
     @parse.register(TextIOWrapper)
     @parse.register(StringIO)

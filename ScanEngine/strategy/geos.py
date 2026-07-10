@@ -241,7 +241,7 @@ class Geospatial(Strategy):
             node['from'] = 'se'
             if isinstance(exception, FilterError):
                 node['status'] = exception.status
-                self.logger.error(exception)
+                self.logger.info('%s  name: %s  path: %s', exception, node.data.get('name', ''), node.data.get('path', ''))
                 self.producer.send(
                     topic=self.variables.kafka['filter'],
                     value=node.data

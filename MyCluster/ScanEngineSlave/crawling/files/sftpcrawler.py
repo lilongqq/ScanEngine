@@ -307,4 +307,4 @@ class SFTPIterator(Iterator):
         md5 = hashlib.md5()
         md5.update(f.getbuffer())
         node['md5'] = md5.hexdigest()
-        return f
+        return f.getvalue()

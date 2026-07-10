@@ -170,26 +170,26 @@ class Scheduler(Thread):
     def onetime(self, future):
         exception = future.exception()
         if exception:
-            self.logger.error(traceback.format_exc())
+            self.logger.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
 
     def on_active(self, event, future):
         exception = future.exception()
         if exception:
-            self.logger.error(traceback.format_exc())
+            self.logger.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
         self.active_event(event)
         self.enterabs(**event)
 
     def on_inactive(self, event, future):
         exception = future.exception()
         if exception:
-            self.logger.error(traceback.format_exc())
+            self.logger.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
         self.inactive_event(event)
         self.enterabs(**event)
 
     def on_calendar(self, event, future):
         exception = future.exception()
         if exception:
-            self.logger.error(traceback.format_exc())
+            self.logger.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
         try:
             self.calendar_event(event)
         except ValueError:

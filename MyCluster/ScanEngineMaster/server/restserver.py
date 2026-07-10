@@ -71,6 +71,10 @@ class ScanEngine(object):
             view_func=self.restore, methods=['POST']
         )
         self.app.add_url_rule(
+            '/purge',
+            view_func=self.purge, methods=['POST']
+        )
+        self.app.add_url_rule(
             '/count_size',
             view_func=self.count_size, methods=['POST']
         )
@@ -80,6 +84,7 @@ class ScanEngine(object):
 
     @auth.login_required
     def db_preview(self):
+        client = None
         try:
             req_body = request.json
             self.logger.info(req_body)
@@ -104,9 +109,16 @@ class ScanEngine(object):
         except Exception:
             self.logger.error(traceback.format_exc())
             return self.json_data({'code': 5000, 'message': '服务器内部异常', 'data': []})
+        finally:
+            if client is not None and hasattr(client, '__del__'):
+                try:
+                    client.__del__()
+                except Exception:
+                    pass
 
     @auth.login_required
     def db_info(self):
+        client = None
         try:
             req_body = request.json
             self.logger.info(req_body)
@@ -129,6 +141,12 @@ class ScanEngine(object):
         except Exception:
             self.logger.error(traceback.format_exc())
             return self.json_data({'code': 5000, 'message': '服务器内部异常', 'data': []})
+        finally:
+            if client is not None and hasattr(client, '__del__'):
+                try:
+                    client.__del__()
+                except Exception:
+                    pass
 
     @auth.login_required
     def db_found(self):
@@ -158,6 +176,7 @@ class ScanEngine(object):
 
     @auth.login_required
     def test_connect(self):
+        browser = None
         try:
             req_body = request.json
             self.logger.info(req_body)
@@ -201,14 +220,19 @@ class ScanEngine(object):
             return self.json_data({'code': 4001, 'message': '网络连接异常', 'data': []})
         except (NotReadyError, NotConnectedError, SMBTimeout):
             return self.json_data({'code': 4002, 'message': '用户名或密码错误', 'data': []})
-        except Exception as e:
-            print(e)
-            print(traceback.format_exc())
+        except Exception:
             self.logger.error(traceback.format_exc())
             return self.json_data({'code': 5000, 'message': '服务器内部异常', 'data': []})
+        finally:
+            if browser is not None and hasattr(browser, '__del__'):
+                try:
+                    browser.__del__()
+                except Exception:
+                    pass
 
     @auth.login_required
     def download(self):
+        client = None
         try:
             req_body = request.json
             self.logger.info(req_body)
@@ -225,7 +249,14 @@ class ScanEngine(object):
         except Exception:
             self.logger.error(traceback.format_exc())
             return self.json_data({'code': 5000, 'message': '服务器内部异常', 'data': []}, http_code=500)
+        finally:
+            if client is not None and hasattr(client, '__del__'):
+                try:
+                    client.__del__()
+                except Exception:
+                    pass
 
+    @auth.login_required
     def separate(self):
         try:
             node = request.json
@@ -240,7 +271,7 @@ class ScanEngine(object):
                 )(
                     **node['auth']
                 )
-            except:
+            except Exception:
                 self.logger.error(traceback.format_exc())
                 return self.json_data({
                     'code': 4000,
@@ -253,7 +284,7 @@ class ScanEngine(object):
             # download file
             try:
                 f = src_client.get_file(node)
-            except:
+            except Exception:
                 self.logger.error(traceback.format_exc())
                 return self.json_data({
                     'code': 4000,
@@ -264,14 +295,15 @@ class ScanEngine(object):
                 try:
                     self.logger.info('sepCls:')
                     self.logger.info(node['sepCls'])
-                    self.logger.info(node['sepAuth'])
+                    self.logger.info({k: '***' if 'pass' in k.lower() or 'key' in k.lower() else v
+                                      for k, v in node['sepAuth'].items()})
                     target_client = get_class(
                         classmap.protocol.get(node['sepCls'])
                     )(
                         **node['sepAuth']
                     )
                     target_client.store_file(node, f)
-                except:
+                except Exception:
                     self.logger.error(traceback.format_exc())
                     return self.json_data({
                         'code': 4000,
@@ -295,6 +327,7 @@ class ScanEngine(object):
             self.logger.error(traceback.format_exc())
             return self.json_data({'code': 5000, 'message': '服务器内部异常'})
 
+    @auth.login_required
     def restore(self):
         try:
             node = request.json
@@ -313,7 +346,7 @@ class ScanEngine(object):
                 )(
                     **node['auth']
                 )
-            except:
+            except Exception:
                 self.logger.error(traceback.format_exc())
                 return self.json_data({
                     'code': 4000,
@@ -326,7 +359,7 @@ class ScanEngine(object):
             # download file
             try:
                 f = src_client.get_file(node)
-            except:
+            except Exception:
                 self.logger.error(traceback.format_exc())
                 return self.json_data(
                     {
@@ -339,7 +372,8 @@ class ScanEngine(object):
                 try:
                     self.logger.info('sepCls:')
                     self.logger.info(node['sepCls'])
-                    self.logger.info(node['sepAuth'])
+                    self.logger.info({k: '***' if 'pass' in k.lower() or 'key' in k.lower() else v
+                                      for k, v in node['sepAuth'].items()})
                     target_client = get_class(
                         classmap.protocol.get(
                             node['sepCls']
@@ -348,7 +382,7 @@ class ScanEngine(object):
                         **node['sepAuth']
                     )
                     target_client.store_file(node, f)
-                except:
+                except Exception:
                     self.logger.error(traceback.format_exc())
                     return self.json_data({
                         'code': 4000,
@@ -363,6 +397,37 @@ class ScanEngine(object):
                 'code': 2000,
                 'message': 'succeed'
             })
+        except Exception:
+            self.logger.error(traceback.format_exc())
+            return self.json_data({'code': 5000, 'message': '服务器内部异常'})
+
+    @auth.login_required
+    def purge(self):
+        try:
+            node = request.json
+            self.logger.info(node)
+            node['path'] = node['sepPath'] + '/' + node['name']
+            remote = node.get('remote', 1)
+            if remote:
+                try:
+                    _tgt_factory = get_class(classmap.protocol.get(node['sepCls']))
+                    client = _tgt_factory(**node['sepAuth'])
+                except Exception:
+                    self.logger.error(traceback.format_exc())
+                    return self.json_data({'code': 4000, 'message': '隔离服务器连接失败'})
+            else:
+                try:
+                    _src_factory = get_class(classmap.protocol.get(node['cls']))
+                    client = _src_factory(**node['auth'])
+                except Exception:
+                    self.logger.error(traceback.format_exc())
+                    return self.json_data({'code': 4000, 'message': '服务器连接失败'})
+            try:
+                client.empty_file(node)
+            except Exception:
+                self.logger.error(traceback.format_exc())
+            client.delete_file(node)
+            return self.json_data({'code': 2000, 'message': 'succeed'})
         except Exception:
             self.logger.error(traceback.format_exc())
             return self.json_data({'code': 5000, 'message': '服务器内部异常'})
@@ -412,7 +477,7 @@ class ScanEngine(object):
     def count_size(self):
         try:
             data = request.json
-            self.logger.info(data)
+            self.logger.debug(data)
             identity = data.get('identity', None)
             stats_name = ':'.join([self.variables.redis['stats'], identity])
             count, db_records, size, task_id, status = self.redis.hmget(

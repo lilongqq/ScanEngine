@@ -5,7 +5,7 @@ import traceback
 import os
 import logging
 import uuid
-from threading import Timer
+from threading import Timer, Lock
 from common.functools import get_class
 from common.globals import Variables
 from mq import Producer
@@ -23,6 +23,7 @@ class StrategyFactory(object):
             **self.variables.kafka['producer']
         )
         self.cache = dict()
+        self.cache_lock = Lock()
         self.scheduler = Scheduler()
         self.scheduler.start()
 
@@ -73,7 +74,9 @@ class StrategyFactory(object):
         self.scheduler.enterabs(**event)
 
     def manual_start(self, identity):
-        if identity not in self.cache:
+        with self.cache_lock:
+            in_cache = identity in self.cache
+        if not in_cache:
             self.scheduler.cancel(identity)
             definition = self.load(identity)
             scheduler = definition['scheduler']
@@ -87,7 +90,8 @@ class StrategyFactory(object):
         strategy = definition['strategy']
         try:
             instance = get_class(cls)(identity, partitions, **strategy)
-            self.cache[identity] = instance
+            with self.cache_lock:
+                self.cache[identity] = instance
             self.producer.send_all(
                 partitions=partitions,
                 topic=self.variables.kafka['definition'],
@@ -96,7 +100,7 @@ class StrategyFactory(object):
                     'identity': identity
                 }
             )
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
             self.producer.send(
                 blocking=True,
@@ -110,10 +114,11 @@ class StrategyFactory(object):
             raise
         try:
             instance.start()
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
         finally:
-            del self.cache[identity]
+            with self.cache_lock:
+                self.cache.pop(identity, None)
 
     def secondary(self, definition):
         identity = definition['identity']
@@ -131,13 +136,14 @@ class StrategyFactory(object):
         strategy = definition['strategy']
         try:
             instance = get_class(cls)(identity, partitions, **strategy)
-            self.cache[identity] = instance
+            with self.cache_lock:
+                self.cache[identity] = instance
             self.producer.send_all(
                 partitions=partitions,
                 topic=self.variables.kafka['definition'],
                 value={**definition, 'op': 'slave_secondary'}
             )
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
             self.producer.send(
                 blocking=True,
@@ -151,10 +157,11 @@ class StrategyFactory(object):
             raise
         try:
             instance.start()
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
         finally:
-            del self.cache[identity]
+            with self.cache_lock:
+                self.cache.pop(identity, None)
 
     def manual_stop(self, identity):
         self.scheduler.cancel(identity)
@@ -172,11 +179,13 @@ class StrategyFactory(object):
                     'identity': identity
                 }
             )
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
             raise
-        if identity in self.cache:
-            self.cache[identity].stop()
+        with self.cache_lock:
+            instance = self.cache.get(identity)
+        if instance:
+            instance.stop()
 
     def operate(self, identity, op, continuous=None):
         if op == 'start':
@@ -186,6 +195,7 @@ class StrategyFactory(object):
                     self.stop,
                     args=(identity,)
                 )
+                t.daemon = True
                 t.start()
                 self.start(identity)
                 t.cancel()

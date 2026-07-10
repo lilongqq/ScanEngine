@@ -209,7 +209,7 @@ class SMB(Client):
             service_name, path = self.__service_name_and_path(pathname)
             try:
                 self.client.createDirectory(service_name, self.__service_name_and_path(sep_path)[1])
-            except:
+            except Exception:
                 pass
             self.client.storeFile(service_name, path, f, timeout=10)
         else:

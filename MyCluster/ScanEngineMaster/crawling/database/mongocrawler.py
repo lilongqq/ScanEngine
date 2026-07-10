@@ -247,7 +247,7 @@ class MongoIterator(Iterator):
                     except StopIteration:
                         self.cursor = None
                         break
-                    except:
+                    except Exception:
                         self.logger.error(traceback.format_exc())
                         self.cursor = None
                         break
@@ -270,7 +270,7 @@ class MongoIterator(Iterator):
                     else:
                         try:
                             children = self.get_nodes(self.node)
-                        except:
+                        except Exception:
                             self.logger.error(traceback.format_exc())
                             continue
                     children.reverse()
@@ -279,7 +279,7 @@ class MongoIterator(Iterator):
                     try:
                         self.cursor = self.client.get_cursor(self.node)
                         self.start = 0
-                    except:
+                    except Exception:
                         self.logger.error(traceback.format_exc())
                         continue
             else:
@@ -428,7 +428,7 @@ class GRIDFSIterator(Iterator):
                     return node, partial(self.get_file, node, grid_out)
                 except StopIteration:
                     self.cursor = None
-                except:
+                except Exception:
                     self.logger.error(traceback.format_exc())
                     self.cursor = None
             elif len(self.stack) > 0:

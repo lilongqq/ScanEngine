@@ -160,21 +160,60 @@ class NFS(Client):
 
     def get_file(self, node):
         f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
+        fh = bytes.fromhex(node['handle'])
         offset = 0
+        stale_retried = False
         while True:
-            read3res = self.nfsv3.read(
-                bytes.fromhex(node['handle']),
-                offset=offset
-            )
+            read3res = self.nfsv3.read(fh, offset=offset)
             if read3res['status'] == NFS3_OK:
                 f.write(read3res['resok']['data'])
                 offset += read3res['resok']['count']
                 if read3res['resok']['eof']:
                     break
+            elif read3res['status'] == 70 and not stale_retried and node.get('path'):
+                # NFS3ERR_STALE: handle expired, re-resolve from path
+                path = node['path']
+                dir_fh = self._get_dir_handle(os.path.dirname(path))
+                lookup3res = self.nfsv3.lookup(dir_fh, os.path.basename(path))
+                if lookup3res['status'] != NFS3_OK:
+                    raise NFSError(lookup3res)
+                fh = lookup3res['resok']['object']['data']
+                f.seek(0)
+                f.truncate(0)
+                offset = 0
+                stale_retried = True
             else:
-                raise OSError
+                raise NFSError(read3res)
         f.seek(0)
         return f
+
+    def _get_dir_handle(self, path):
+        exports = self.mount.export()
+        export_paths = [
+            item.ex_dir.decode(self.encoding, errors='surrogateescape')
+            for item in exports
+        ]
+        # 找最长匹配的 export 根路径
+        match = None
+        for ep in sorted(export_paths, key=len, reverse=True):
+            if path == ep or path.startswith(ep.rstrip('/') + '/'):
+                match = ep
+                break
+        if match is None:
+            raise NFSError({'status': 2, 'mountinfo': None})
+        mount3res = self.mount.mnt(match)
+        if mount3res['status'] != MNT3_OK:
+            raise NFSError(mount3res)
+        fh = mount3res['mountinfo']['fhandle']
+        # 逐级 LOOKUP 到目标目录
+        rel = os.path.relpath(path, match)
+        if rel != '.':
+            for part in rel.split(os.sep):
+                lookup3res = self.nfsv3.lookup(fh, part)
+                if lookup3res['status'] != NFS3_OK:
+                    raise NFSError(lookup3res)
+                fh = lookup3res['resok']['object']['data']
+        return fh
 
     def store_file(self, node, f):
         self.logger.info('store_file node:')
@@ -183,10 +222,7 @@ class NFS(Client):
         file_name = node.get('name', '')
         if not sep_path or not file_name:
             raise ValueError('sepPath or name is empty')
-        mount3res = self.mount.mnt(sep_path)
-        if mount3res['status'] != MNT3_OK:
-            raise NFSError(mount3res)
-        dir_fh = mount3res['mountinfo']['fhandle']
+        dir_fh = self._get_dir_handle(sep_path)
         create3res = self.nfsv3.create(dir_fh, file_name, 0)
         if create3res['status'] != NFS3_OK:
             raise NFSError(create3res)
@@ -233,10 +269,7 @@ class NFS(Client):
         if node.get('dir_handle'):
             dir_fh = bytes.fromhex(node['dir_handle'])
         else:
-            mount3res = self.mount.mnt(dir_path)
-            if mount3res['status'] != MNT3_OK:
-                raise NFSError(mount3res)
-            dir_fh = mount3res['mountinfo']['fhandle']
+            dir_fh = self._get_dir_handle(dir_path)
         self.nfsv3.remove(dir_fh, file_name)
         create3res = self.nfsv3.create(dir_fh, file_name, 0)
         if create3res['status'] != NFS3_OK:
@@ -248,25 +281,20 @@ class NFS(Client):
 
     @delete_file.register(MutableMapping)
     def _(self, node):
-        mount3res = self.mount.mnt(os.path.dirname(node['path']))
-        if mount3res['status'] == MNT3_OK:
-            remove3res = self.nfsv3.remove(
-                mount3res['mountinfo']['fhandle'], node['name'])
-            if remove3res['status'] != NFS3_OK:
-                raise NFSError(remove3res)
+        if node.get('dir_handle'):
+            dir_fh = bytes.fromhex(node['dir_handle'])
         else:
-            raise NFSError(mount3res)
+            dir_fh = self._get_dir_handle(os.path.dirname(node['path']))
+        remove3res = self.nfsv3.remove(dir_fh, node['name'])
+        if remove3res['status'] != NFS3_OK:
+            raise NFSError(remove3res)
 
     @delete_file.register(str)
     def _(self, path):
-        mount3res = self.mount.mnt(os.path.dirname(path))
-        if mount3res['status'] == MNT3_OK:
-            remove3res = self.nfsv3.remove(
-                mount3res['mountinfo']['fhandle'], os.path.basename(path))
-            if remove3res['status'] != NFS3_OK:
-                raise NFSError(remove3res)
-        else:
-            raise NFSError(mount3res)
+        dir_fh = self._get_dir_handle(os.path.dirname(path))
+        remove3res = self.nfsv3.remove(dir_fh, os.path.basename(path))
+        if remove3res['status'] != NFS3_OK:
+            raise NFSError(remove3res)
 
     def exports(self):
         nodes = list()

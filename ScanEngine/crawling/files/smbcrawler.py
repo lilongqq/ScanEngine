@@ -218,7 +218,7 @@ class SMB(Client):
                 shared_path := node.get('path') or node.get('name')
         ):
             service_name, path = self.__service_name_and_path(shared_path)
-            self.logger.info('retrieveFile')
+            self.logger.info('storeFile')
             self.logger.info(f'service_name: {service_name}, path: {path}')
             f = io.BytesIO()
             self.client.storeFile(service_name, path, f, timeout=10)

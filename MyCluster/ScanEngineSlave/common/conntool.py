@@ -60,27 +60,30 @@ class ClientPool(object):
         return partial(self.wrapper, item)
 
     def wrapper(self, item, *args, **kwargs):
+        client = None
+        success = False
         try:
             self.semaphore.acquire()
-            client = False
             try:
                 client = self.pool.get_nowait()
             except Empty:
                 client = self.cls(*self.args, **self.kwargs)
-            if client:
-                return getattr(client, item)(*args, **kwargs)
-            else:
-                old_client = client
+            if not client:
                 client = self.cls(*self.args, **self.kwargs)
-                try:
-                    del old_client
-                except Exception:
-                    pass
-                return getattr(client, item)(*args, **kwargs)
+            result = getattr(client, item)(*args, **kwargs)
+            success = True
+            return result
         except Exception:
             raise
         finally:
-            self.pool.put(client)
+            if success and client:
+                self.pool.put(client)
+            elif client:
+                try:
+                    if hasattr(client, '__del__'):
+                        client.__del__()
+                except Exception:
+                    pass
             self.semaphore.release()
 
     def __del__(self):

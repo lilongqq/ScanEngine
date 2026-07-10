@@ -117,7 +117,7 @@ class Consumer(object):
             self.consumer.commit()
         except KafkaError:
             self.logger.error(traceback.format_exc())
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
 
     def seek_to_last(self):
@@ -126,7 +126,7 @@ class Consumer(object):
             self.consumer.seek(self.tp, end_offsets - 1)
         except KafkaError:
             self.logger.error(traceback.format_exc())
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
 
     def __iter__(self):

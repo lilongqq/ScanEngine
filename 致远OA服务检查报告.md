@@ -369,52 +369,13 @@ count: 4, size: 117760
 
 ---
 
-## 六、临时调试日志（联调完成后需删除）
+## 六、临时调试日志 ✅ 已删除（2026-06-29）
 
-> ⚠️ 以下日志均以 `[DEBUG-SEEYON]` 为前缀，**联调结束后需全部删除**。
+所有 `[DEBUG-SEEYON]` 前缀的调试日志已从以下文件中全部删除：
 
-### 6.1 web 侧 `/download` 接口日志
-
-**文件**：[ScanEngine/server/restserver.py](ScanEngine/server/restserver.py) — `download()` 方法
-
-| 日志内容 | 级别 |
-|---|---|
-| `[DEBUG-SEEYON][download] web 收到请求: cls=..., node_keys=...` | INFO |
-| `[DEBUG-SEEYON][download] 完整请求体: {...}` | INFO |
-| `[DEBUG-SEEYON][download] 客户端实例化成功: SeeyonBatch` | INFO |
-| `[DEBUG-SEEYON][download] get_file 返回成功, node={...}` | INFO |
-| `[DEBUG-SEEYON][download] 异常: ...` | ERROR |
-
-### 6.2 DBProxy 查询日志
-
-**文件**：[ScanEngine/crawling/files/seeyoncrawler.py](ScanEngine/crawling/files/seeyoncrawler.py) — `SeeyonIterator.__next__()`
-
-| 日志内容 | 级别 |
-|---|---|
-| `[DEBUG-SEEYON][SeeyonIterator] DBProxy query: schema=..., table=..., start=..., page_size=..., where=...` | INFO |
-| `[DEBUG-SEEYON][SeeyonIterator] DBProxy 返回行数=..., start=...` | INFO |
-| `[DEBUG-SEEYON][SeeyonIterator] 第一行样本: [...]` | INFO |
-
-### 6.3 文件下载封装日志
-
-**文件**：[ScanEngine/crawling/files/seeyoncrawler.py](ScanEngine/crawling/files/seeyoncrawler.py) — `SeeyonClient.get_file()`
-
-| 日志内容 | 级别 |
-|---|---|
-| `[DEBUG-SEEYON][get_file] 下载请求: ctp_file_id=..., file_name=..., url=..., token_present=...` | INFO |
-| `[DEBUG-SEEYON][get_file] 下载响应: status=..., headers={...}` | INFO |
-| `[DEBUG-SEEYON][get_file] 下载成功: ctp_file_id=..., file_name=...` | INFO |
-| `[DEBUG-SEEYON][get_file] 下载失败: ctp_file_id=..., status=..., resp_body=...` | ERROR |
-g
-### 删除方法
-
-联调完成后执行以下搜索，将所有调试日志行从文件中删除：
-
-```
-grep -n "DEBUG-SEEYON" ScanEngine/server/restserver.py
-grep -n "DEBUG-SEEYON" ScanEngine/crawling/files/seeyoncrawler.py
-grep -n "DEBUG-SEEYON" ScanEngine/crawling/database/dbproxy/dbpcrawler.py
-```
+- [ScanEngine/server/restserver.py](ScanEngine/server/restserver.py) — `download()`、`operate_job()` 方法
+- [ScanEngine/crawling/files/seeyoncrawler.py](ScanEngine/crawling/files/seeyoncrawler.py) — `SeeyonIterator.__init__()`、`__next__()`、`get_file()`、`SeeyonClient.get_file()`
+- [ScanEngine/crawling/database/dbproxy/dbpcrawler.py](ScanEngine/crawling/database/dbproxy/dbpcrawler.py) — `DBProxyIterator.__init__()`
 
 ---
 

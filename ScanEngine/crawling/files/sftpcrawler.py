@@ -170,10 +170,44 @@ class SFTP(Client):
                 nodes.append(node)
         return nodes
 
+    def _reconnect(self):
+        try:
+            self.transport.close()
+        except Exception:
+            pass
+        if getattr(self, 'pkey', None):
+            try:
+                self.transport = Transport(
+                    self.sock,
+                    disabled_algorithms={'pubkeys': ['rsa-sha2-256', 'rsa-sha2-512']}
+                )
+                self.transport.connect(username=self.username, pkey=self.pkey)
+            except AuthenticationException:
+                self.transport = Transport(self.sock)
+                self.transport.connect(username=self.username, pkey=self.pkey)
+        else:
+            self.transport = Transport(self.sock)
+            self.transport.connect(username=self.username, password=self.password)
+        self.transport.set_keepalive(30)
+        self.transport.sock.settimeout(600)
+        self.client = SFTPClient.from_transport(self.transport)
+
     def get_file(self, node):
         path = node.get('path', node['name'])
         f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
         self.client.getfo(path, fl=f)
+        f.seek(0, 2)
+        actual_size = f.tell()
+        expected_size = int(node.get('size', 0))
+        if actual_size == 0 and expected_size > 0:
+            self.logger.warning('get_file returned 0 bytes but expected %d, path: %s. Retrying with fresh connection.', expected_size, path)
+            f.seek(0)
+            f.truncate(0)
+            self._reconnect()
+            self.client.getfo(path, fl=f)
+            f.seek(0, 2)
+            actual_size = f.tell()
+            self.logger.info('get_file retry result: %d bytes', actual_size)
         f.seek(0)
         return f
 
@@ -211,9 +245,11 @@ class SFTP(Client):
 
         try:
             remote_file = self.client.open(sep_path + '/' + file_name, 'wb')
-            f.seek(0)
-            shutil.copyfileobj(f, remote_file)
-            remote_file.close()
+            try:
+                f.seek(0)
+                shutil.copyfileobj(f, remote_file)
+            finally:
+                remote_file.close()
         except Exception:
             self.logger.error('SFTP store_file failed: %s', traceback.format_exc())
             raise
@@ -221,11 +257,19 @@ class SFTP(Client):
     def empty_file(self, node):
         if not node:
             raise ValueError('node is None')
-        remote_file = self.client.open(node['path'], 'wb')
-        remote_file.close()
+        path = node.get('path')
+        if not path:
+            raise ValueError('path is empty')
+        remote_file = self.client.open(path, 'wb')
+        try:
+            pass
+        finally:
+            remote_file.close()
 
     def delete_file(self, node):
         path = node.get('path', None)
+        if not path:
+            raise ValueError('path is empty')
         self.client.remove(path)
 
     def __bool__(self):

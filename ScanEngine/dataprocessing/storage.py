@@ -45,9 +45,6 @@ class MinioStorage(object):
         """
         this method is a singledispatch by switch types including file, text, binary, and, string
         """
-        if node.data.get('cls') == 'OSS':
-            node.data.pop('auth', None)
-            node.data.pop('cls', None)
         if node['type'] == 'file':
             self.file(node, data)
         elif node['type'] == 'binary':

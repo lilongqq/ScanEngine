@@ -4,6 +4,7 @@ logging:
     handlers:
       - console
       - file
+      - flask
     level: NOTSET
   handlers:
     console:

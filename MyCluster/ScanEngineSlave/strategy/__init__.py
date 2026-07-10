@@ -5,6 +5,7 @@ import traceback
 import os
 import logging
 import uuid
+from threading import Lock
 from common.functools import get_class
 from common.globals import Variables
 from mq import Producer
@@ -21,6 +22,7 @@ class StrategyFactory(object):
             **self.variables.kafka['producer']
         )
         self.cache = dict()
+        self.cache_lock = Lock()
         self.pool = ThreadPoolExecutor(max_workers=1)
 
     def dump(self, definition):
@@ -53,8 +55,9 @@ class StrategyFactory(object):
         rule_list = strategy.pop('ruleList', [])
         try:
             instance = get_class(cls)(identity, partitions, rule_list=rule_list, **strategy)
-            self.cache[identity] = instance
-        except:
+            with self.cache_lock:
+                self.cache[identity] = instance
+        except Exception:
             self.logger.error(traceback.format_exc())
             self.producer.send(
                 blocking=True,
@@ -68,10 +71,11 @@ class StrategyFactory(object):
             raise
         try:
             instance.start()
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
         finally:
-            del self.cache[identity]
+            with self.cache_lock:
+                self.cache.pop(identity, None)
 
     def slave_secondary(self, definition):
         self.pool.submit(self.secondary_start, definition)
@@ -84,8 +88,9 @@ class StrategyFactory(object):
         rule_list = strategy.pop('ruleList', [])
         try:
             instance = get_class(cls)(identity, partitions, rule_list=rule_list, **strategy)
-            self.cache[identity] = instance
-        except:
+            with self.cache_lock:
+                self.cache[identity] = instance
+        except Exception:
             self.logger.error(traceback.format_exc())
             self.producer.send(
                 blocking=True,
@@ -99,14 +104,17 @@ class StrategyFactory(object):
             raise
         try:
             instance.start()
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
         finally:
-            del self.cache[identity]
+            with self.cache_lock:
+                self.cache.pop(identity, None)
 
     def stop(self, identity):
-        if identity in self.cache:
-            self.cache[identity].stop()
+        with self.cache_lock:
+            instance = self.cache.get(identity)
+        if instance:
+            instance.stop()
 
     def slave_resume(self):
         self.pool.submit(self.resume)
@@ -121,8 +129,9 @@ class StrategyFactory(object):
             rule_list = strategy.pop('ruleList', [])
         try:
             instance = get_class(cls)(identity, partitions, rule_list=rule_list, **strategy)
-            self.cache[identity] = instance
-        except:
+            with self.cache_lock:
+                self.cache[identity] = instance
+        except Exception:
             self.logger.error(traceback.format_exc())
             self.producer.send(
                 blocking=True,
@@ -136,7 +145,8 @@ class StrategyFactory(object):
             raise
         try:
             instance.start()
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
         finally:
-            del self.cache[identity]
+            with self.cache_lock:
+                self.cache.pop(identity, None)

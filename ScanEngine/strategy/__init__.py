@@ -3,9 +3,10 @@
 import json
 import traceback
 import os
+import shutil
 import logging
 import uuid
-from threading import Timer
+from threading import Timer, Lock
 from common.functools import get_class
 from common.globals import Variables
 from mq import Producer
@@ -25,6 +26,7 @@ class StrategyFactory(object):
             **self.variables.kafka['producer']
         )
         self.cache = dict()
+        self.cache_lock = Lock()
         self.scheduler = Scheduler()
         self.scheduler.start()
 
@@ -83,8 +85,9 @@ class StrategyFactory(object):
         rule_list = strategy.pop('ruleList', [])
         try:
             instance = get_class(cls)(identity, rule_list=rule_list, **strategy)
-            self.cache[identity] = instance
-        except:
+            with self.cache_lock:
+                self.cache[identity] = instance
+        except Exception:
             self.logger.error(traceback.format_exc())
             self.producer.send(
                 blocking=True,
@@ -98,10 +101,11 @@ class StrategyFactory(object):
             raise
         try:
             instance.start()
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
         finally:
-            del self.cache[identity]
+            with self.cache_lock:
+                del self.cache[identity]
 
     def secondary(self, definition):
         identity = definition['identity']
@@ -121,8 +125,9 @@ class StrategyFactory(object):
         rule_list = strategy.pop('ruleList', [])
         try:
             instance = get_class(cls)(identity, rule_list=rule_list, **strategy)
-            self.cache[identity] = instance
-        except:
+            with self.cache_lock:
+                self.cache[identity] = instance
+        except Exception:
             self.logger.error(traceback.format_exc())
             self.producer.send(
                 blocking=True,
@@ -136,18 +141,28 @@ class StrategyFactory(object):
             raise
         try:
             instance.start()
-        except:
+        except Exception:
             self.logger.error(traceback.format_exc())
         finally:
-            del self.cache[identity]
+            with self.cache_lock:
+                del self.cache[identity]
+
+    def delete(self, identity):
+        self.scheduler.cancel(identity)
+        self.stop(identity)
+        strategy_dir = os.path.join(self.variables.strategy, identity)
+        if os.path.isdir(strategy_dir):
+            shutil.rmtree(strategy_dir)
 
     def manual_stop(self, identity):
         self.scheduler.cancel(identity)
         self.stop(identity)
 
     def stop(self, identity):
-        if identity in self.cache:
-            self.cache[identity].stop()
+        with self.cache_lock:
+            instance = self.cache.get(identity)
+        if instance:
+            instance.stop()
 
     def operate(self, identity, op, continuous=None):
         if op == 'start':
@@ -157,6 +172,7 @@ class StrategyFactory(object):
                     self.stop,
                     args=(identity,)
                 )
+                t.daemon = True
                 t.start()
                 self.start(identity)
                 t.cancel()

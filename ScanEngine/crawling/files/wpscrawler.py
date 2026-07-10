@@ -98,14 +98,8 @@ class WKDOCAuth(AuthBase):
             data=body,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-        self.logger.debug('request:')
-        self.logger.debug(resp.request.url)
-        self.logger.debug(resp.request.headers)
-        self.logger.debug('response:')
-        self.logger.debug(resp.status_code)
-        self.logger.debug(resp.headers)
         if resp.status_code >= 300:
-            if resp.headers.get("Content-Type") == "application/json":
+            if resp.headers.get("Content-Type", "").startswith("application/json"):
                 json = resp.json()
                 raise WPSError(json)
             else:
@@ -188,9 +182,10 @@ class WKDOC(Client):
 
     def refresh_token(self, r, *args, **kwargs):
         if 300 <= r.status_code < 500:
-            if r.headers.get("Content-Type") == "application/json":
+            if r.headers.get("Content-Type", "").startswith("application/json"):
                 json = r.json()
-                if int(json.get("code")) == 40100011:
+                if json.get("code") == 40100011:
+                    self.logger.debug('token expired, refreshing')
                     self.auth.refresh_token()
         return r
 
@@ -201,14 +196,8 @@ class WKDOC(Client):
         if page_token:
             params["page_token"] = page_token
         resp = self.session.get(url, params=params, auth=self.auth)
-        self.logger.debug('request:')
-        self.logger.debug(resp.request.url)
-        self.logger.debug(resp.request.headers)
-        self.logger.debug('response:')
-        self.logger.debug(resp.status_code)
-        self.logger.debug(resp.headers)
         if resp.status_code >= 300:
-            if resp.headers.get("Content-Type") == "application/json":
+            if resp.headers.get("Content-Type", "").startswith("application/json"):
                 json = resp.json()
                 raise WPSError(json)
             else:
@@ -217,7 +206,10 @@ class WKDOC(Client):
         else:
             json = resp.json()
             if json.get("code") == 0:
-                for item in json.get("data").get("items"):
+                items = json.get("data").get("items")
+                self.logger.debug('drives count: %d', len(items))
+                for item in items:
+                    self.logger.debug('drive: id=%s name=%s', item["id"], item["name"])
                     node = dict()
                     node["type"] = "dir"
                     node["name"] = item["name"]
@@ -258,14 +250,8 @@ class WKDOC(Client):
             params["page_token"] = page_token
 
         resp = self.session.get(url, params=params, auth=self.auth)
-        self.logger.debug('request:')
-        self.logger.debug(resp.request.url)
-        self.logger.debug(resp.request.headers)
-        self.logger.debug('response:')
-        self.logger.debug(resp.status_code)
-        self.logger.debug(resp.headers)
         if resp.status_code >= 300:
-            if resp.headers.get("Content-Type") == "application/json":
+            if resp.headers.get("Content-Type", "").startswith("application/json"):
                 json = resp.json()
                 raise WPSError(json)
             else:
@@ -296,10 +282,12 @@ class WKDOC(Client):
                     node["version"] = item["version"]
                     node['link_id'] = item.get('link_id', '')
                     node['link_url'] = item.get('link_url', '')
+                    self.logger.debug('listdir node keys=%s name=%s file_id=%s', sorted(node.keys()), node.get('name'), node.get('file_id'))
                     nodes.append(node)
                 else:
                     next_page_token = json.get("data").get("next_page_token")
                     if next_page_token:
+                        self.logger.debug('listdir next_page_token: drive_id=%s parent_id=%s token=%s', drive_id, parent_id, next_page_token)
                         node = dict()
                         node["type"] = "dir"
                         node["name"] = "..."
@@ -318,14 +306,8 @@ class WKDOC(Client):
             f"v7/drives/{drive_id}/files/{file_id}/download"
         )
         resp = self.session.get(url, auth=self.auth)
-        self.logger.debug('request:')
-        self.logger.debug(resp.request.url)
-        self.logger.debug(resp.request.headers)
-        self.logger.debug('response:')
-        self.logger.debug(resp.status_code)
-        self.logger.debug(resp.headers)
         if resp.status_code >= 300:
-            if resp.headers.get("Content-Type") == "application/json":
+            if resp.headers.get("Content-Type", "").startswith("application/json"):
                 json = resp.json()
                 raise WPSError(json)
             else:
@@ -335,18 +317,32 @@ class WKDOC(Client):
             json = resp.json()
             return json.get("data").get("url")
 
+    def get_file_info(self, drive_id, file_id):
+        url = os.path.join(
+            self.endpoint,
+            f"v7/drives/{drive_id}/files/{file_id}/meta"
+        )
+        resp = self.session.get(url, auth=self.auth)
+        if resp.status_code >= 300:
+            if resp.headers.get("Content-Type", "").startswith("application/json"):
+                json = resp.json()
+                raise WPSError(json)
+            else:
+                self.logger.debug(resp.text)
+                resp.raise_for_status()
+        else:
+            json = resp.json()
+            if json.get("code") == 0:
+                return json.get("data")
+            else:
+                raise WPSError(json)
+
     def get_file(self, node):
         drive_id = node["drive_id"]
         file_id = node["file_id"]
         url = self.get_download_url(drive_id, file_id)
         f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
         resp = self.session.get(url, stream=True)
-        self.logger.debug('request:')
-        self.logger.debug(resp.request.url)
-        self.logger.debug(resp.request.headers)
-        self.logger.debug('response:')
-        self.logger.debug(resp.status_code)
-        self.logger.debug(resp.headers)
         if resp.status_code >= 300:
             self.logger.debug(resp.text)
             resp.raise_for_status()
@@ -362,9 +358,11 @@ class WKDOC(Client):
             drives = self.get_drives(**params)
             return drives
         else:
+            parent_id = node.get("file_id") or node.get("parent_id", 0)
+            self.logger.debug('get_nodes listdir: drive_id=%s parent_id=%s', node["drive_id"], parent_id)
             params = {
                 "drive_id": node["drive_id"],
-                "parent_id": node.get("file_id", 0),
+                "parent_id": parent_id,
                 "page_token": node.get("page_token"),
             }
             files = self.listdir(**params)
@@ -386,6 +384,7 @@ class WKDOCIterator(Iterator):
 
     def __init__(self, auth, resources={}):
 
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.auth = auth
         self.client = WKDOC(**self.auth)
         self.stack = list()
@@ -399,6 +398,53 @@ class WKDOCIterator(Iterator):
     def __bool__(self):
         return bool(self.stack)
 
+    def _enrich_child(self, child):
+        if child.get('type') == 'file' and 'last_write_time' not in child:
+            try:
+                item = self.client.get_file_info(child['drive_id'], child['file_id'])
+                child['name'] = item['name']
+                child['last_write_time'] = item['mtime']
+                child['create_time'] = item['ctime']
+                child['size'] = item['size']
+                child['parent_id'] = item.get('parent_id', '')
+                child['path'] = '{}/{}'.format(child['drive_id'], child['file_id'])
+                self.logger.debug(
+                    'enriched child: drive_id=%s file_id=%s name=%s size=%s last_write_time=%s',
+                    child.get('drive_id'), child.get('file_id'),
+                    child.get('name'), child.get('size'), child.get('last_write_time')
+                )
+            except requests.exceptions.HTTPError as e:
+                status = e.response.status_code
+                if status == 404:
+                    source = 'WPS env: file not found'
+                elif status in (401, 403):
+                    source = 'our side: auth/permission error, check credentials'
+                elif status >= 500:
+                    source = 'WPS env: server error'
+                else:
+                    source = 'unknown'
+                self.logger.warning(
+                    'failed to enrich child: drive_id=%s file_id=%s status=%s [%s]',
+                    child.get('drive_id'), child.get('file_id'), status, source
+                )
+                self.logger.debug('response body: %s', e.response.text)
+            except WPSError as e:
+                if e.code in (401, 403):
+                    source = 'our side: auth/permission error, check credentials'
+                else:
+                    source = 'WPS env: wps_code=%s' % e.code
+                self.logger.warning(
+                    'failed to enrich child: drive_id=%s file_id=%s [%s] detail=%s',
+                    child.get('drive_id'), child.get('file_id'), source, e
+                )
+            except Exception:
+                self.logger.warning(
+                    'failed to enrich child: drive_id=%s file_id=%s',
+                    child.get('drive_id'), child.get('file_id'),
+                    exc_info=True
+                )
+        return child
+
     def __next__(self):
         while len(self.stack) > 0:
             self.node = WKDOCDict(self.stack.pop())
@@ -406,7 +452,7 @@ class WKDOCIterator(Iterator):
             self.node["cls"] = "WKDOC"
             if "children" in self.node:
                 if self.node["children"]:
-                    children = self.node["children"]
+                    children = [self._enrich_child(dict(c)) for c in self.node["children"]]
                 else:
                     children = self.get_nodes(self.node)
                 children.reverse()

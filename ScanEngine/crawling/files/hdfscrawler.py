@@ -49,8 +49,8 @@ class HDFS(object):
     @get_nodes.register(MutableMapping)
     def _(self, node):
         nodes = list()
-        if node and node.get('path', node['name']):
-            path = node.get('path', node['name'])
+        if node and (node.get('path') or node.get('name')):
+            path = node.get('path') or node.get('name')
         else:
             path = '/'
         resp = self.client.list(path, status=True)
@@ -84,7 +84,7 @@ class HDFS(object):
         return nodes
 
     def get_file(self, node={}):
-        path = node.get('path', node['name'])
+        path = node.get('path') or node.get('name')
         f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
         with self.client.read(path) as resp:
             for chunk in resp:

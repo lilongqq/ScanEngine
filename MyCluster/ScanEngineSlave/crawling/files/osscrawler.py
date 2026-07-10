@@ -891,7 +891,7 @@ class S3(Client):
                 try:
                     resp = self.client.get_bucket_location(
                         Bucket=bucket['Name'])
-                except:
+                except Exception:
                     node['location'] = ''
                 else:
                     node['location'] = resp['LocationConstraint']
@@ -952,7 +952,7 @@ class S3(Client):
                 try:
                     resp = self.client.get_bucket_location(
                         Bucket=bucket['Name'])
-                except:
+                except Exception:
                     node['location'] = ''
                 else:
                     node['location'] = resp['LocationConstraint']

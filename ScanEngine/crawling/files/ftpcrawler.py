@@ -8,6 +8,7 @@ from tempfile import SpooledTemporaryFile
 from datetime import datetime
 from selectors import DefaultSelector, EVENT_READ
 import os.path
+import posixpath
 from ftplib import FTP
 from collections.abc import MutableMapping
 from collections import UserDict
@@ -264,7 +265,7 @@ class Ftp(Client):
         self.put_file(node, f)
 
     def store_file(self, node, f):
-        path = os.path.join(node.get('sepPath', ''), node['name'])
+        path = posixpath.join(node.get('sepPath', ''), node['name'])
         self.put_file(path, f)
 
     def format(self, item):

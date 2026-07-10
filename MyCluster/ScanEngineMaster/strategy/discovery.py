@@ -119,11 +119,28 @@ class Discovery(Strategy):
         self.redis.hset(self.stats_name, 'status', 'start')
         self.report_task_start()
         self.run()
+        self.logger.info(
+            '''
+            identity: {identity}
+            rules_id: {rules_id}
+            count: {count}
+            db_records: {db_records}
+            size: {size}
+            '''.format(
+                identity=self.identity,
+                rules_id=self.rules_id,
+                count=self.count,
+                db_records=self.db_records,
+                size=self.size
+            )
+        )
 
     def run(self):
+        consecutive_errors = 0
         while self.bool:
             try:
                 node = next(self.iterator)
+                consecutive_errors = 0
                 node['taskId'] = self.task_id
                 self.logger.debug(node)
                 if self.filter_chain(node):
@@ -131,6 +148,9 @@ class Discovery(Strategy):
                         topic=self.variables.kafka['attributes'],
                         value=node.data
                     )
+                    self.count += 1
+                    if 'size' in node:
+                        self.size += node['size']
             except StopIteration:
                 self.producer.flush()
                 self.producer.send_all(
@@ -164,7 +184,13 @@ class Discovery(Strategy):
                 self.pipeline.hincrby(self.stats_name, 'count')
                 self.pipeline.execute()
             except Exception:
+                consecutive_errors += 1
                 self.logger.info(traceback.format_exc())
+                if consecutive_errors >= 50:
+                    self.logger.error('too many consecutive errors (%d), stopping', consecutive_errors)
+                    break
+                elif consecutive_errors >= 5:
+                    time.sleep(min(consecutive_errors * 0.5, 30))
                 node = self.iterator.node
                 node['jobId'] = [self.identity]
                 node['taskId'] = self.task_id

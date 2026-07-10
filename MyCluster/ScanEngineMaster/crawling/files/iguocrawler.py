@@ -106,7 +106,7 @@ class IguoAuth(AuthBase):
                         self.logger.info(self.last_refresh_time)
             else:
                 self.logger.info('the token is already refresh')
-        except:
+        except Exception:
             raise
         finally:
             self.lock.release()
@@ -356,7 +356,7 @@ class IguoIterator(Iterator):
                         self.client.auth.refresh_token(time.time())
                     else:
                         self.is_truncated = False
-                except:
+                except Exception:
                     self.is_truncated = False
             elif len(self.stack) > 0:
                 self.node = self.stack.pop()

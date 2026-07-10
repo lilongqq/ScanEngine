@@ -181,6 +181,7 @@ class UDSIterator(Iterator):
                 return self.node
             elif self.is_truncated:
                 try:
+                    self.logger.info('fetching page %d, resources: %s', self.current_page, self.resources)
                     is_truncated, nodes = self.client.get_nodes(
                         current_page=self.current_page,
                         **self.resources

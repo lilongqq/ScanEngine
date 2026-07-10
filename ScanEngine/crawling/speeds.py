@@ -77,12 +77,9 @@ class ZeroChain(object):
         if curr_time.isoweekday() not in isoweekdays:
             self.logger.info(curr_time)
         elif time.fromisoformat(begin) <= curr_time.time() <= time.fromisoformat(end):
-            self.logger.info('speed is {}'.format(speed))
-            end_time = datetime.combine(
-                date=date.today(),
-                time=time.fromisoformat(end)
-            )
+            end_time = datetime.combine(date=date.today(), time=time.fromisoformat(end))
             waiting = (end_time - curr_time).total_seconds()
+            self.logger.info('speed is %s, block until %s (%.0fs)', speed, end_time.strftime('%H:%M:%S'), waiting)
             self.logger.info('block')
             self.event.wait(timeout=waiting)
             self.logger.info('open')

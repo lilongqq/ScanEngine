@@ -127,29 +127,30 @@ class Scheduler(Thread):
     def run(self) -> None:
         while self.bool:
             self.cond.acquire()
-            if self.queue:
-                event = self.queue[0]
-                execute_time = event['date_time']
-                current_time = datetime.now()
-                if execute_time > current_time:
-                    time_delta = execute_time - current_time
-                    timeout = time_delta.total_seconds()
-                    self.logger.info('wait {} seconds'.format(timeout))
-                    if self.cond.wait(timeout=timeout):
-                        self.logger.info('event is created')
+            try:
+                if self.queue:
+                    event = self.queue[0]
+                    execute_time = event['date_time']
+                    current_time = datetime.now()
+                    if execute_time > current_time:
+                        time_delta = execute_time - current_time
+                        timeout = time_delta.total_seconds()
+                        self.logger.info('wait {} seconds'.format(timeout))
+                        if self.cond.wait(timeout=timeout):
+                            self.logger.info('event is created')
+                        else:
+                            self.logger.info('wait time is enough')
+                            event = heapq.heappop(self.queue)
+                            self.schedule(event)
                     else:
-                        self.logger.info('wait time is enough')
+                        self.logger.info('run right now')
                         event = heapq.heappop(self.queue)
                         self.schedule(event)
                 else:
-                    self.logger.info('run right now')
-                    event = heapq.heappop(self.queue)
-                    self.schedule(event)
-                self.cond.release()
-            else:
-                self.logger.info('no event in queue')
-                self.cond.wait()
-                self.logger.info('event is created')
+                    self.logger.info('no event in queue')
+                    self.cond.wait()
+                    self.logger.info('event is created')
+            finally:
                 self.cond.release()
 
     def schedule(self, event):
@@ -172,26 +173,26 @@ class Scheduler(Thread):
     def onetime(self, future):
         exception = future.exception()
         if exception:
-            self.logger.error(traceback.format_exc())
+            self.logger.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
 
     def on_active(self, event, future):
         exception = future.exception()
         if exception:
-            self.logger.error(traceback.format_exc())
+            self.logger.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
         self.active_event(event)
         self.enterabs(**event)
 
     def on_inactive(self, event, future):
         exception = future.exception()
         if exception:
-            self.logger.error(traceback.format_exc())
+            self.logger.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
         self.inactive_event(event)
         self.enterabs(**event)
 
     def on_calendar(self, event, future):
         exception = future.exception()
         if exception:
-            self.logger.error(traceback.format_exc())
+            self.logger.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
         try:
             self.calendar_event(event)
         except ValueError:

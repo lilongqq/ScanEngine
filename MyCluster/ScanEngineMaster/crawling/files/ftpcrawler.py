@@ -112,7 +112,7 @@ class Ftp(Client):
         for item in resp:
             try:
                 node = self.format(item)
-            except:
+            except Exception:
                 self.logger.error(item)
                 raise
             node['path'] = os.path.join(path, node['name'])
@@ -126,7 +126,7 @@ class Ftp(Client):
         for item in resp:
             try:
                 node = self.format(item)
-            except:
+            except Exception:
                 self.logger.error(item)
                 raise
             if node['name'] == os.path.basename(path):

@@ -26,8 +26,8 @@ class Test(object):
             **self.variables.kafka['producer']
         )
         self.rule_list = rule_list
-        base_blacklist = self.variables.redis['blacklist']
-        base_whitelist = self.variables.redis['whitelist']
+        base_blacklist = self.variables.redis.get('blacklist', 'EVENT_BLACK_LIST')
+        base_whitelist = self.variables.redis.get('whitelist', 'EVENT_WHITE_LIST')
         if rule_list:
             self.checklist_keys = [
                 ('{}:{}'.format(base_blacklist, rule_id), '{}:{}'.format(base_whitelist, rule_id))

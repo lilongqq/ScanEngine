@@ -4,6 +4,7 @@ import time
 import hashlib
 import logging
 import requests
+from datetime import datetime
 from tempfile import SpooledTemporaryFile
 from threading import Lock
 from functools import partial
@@ -16,16 +17,35 @@ from crawling.database.dbproxy.dbpcrawler import DBProxyBatch
 
 
 _DEFAULT_RATE_LIMIT = 500  # 默认每分钟最多调用 DBProxy 500 次
-_DEFAULT_CTP_FIELDS = ('ID', 'FILE_NAME', 'FILE_SIZE', 'UPDATE_DATE', 'MIME_TYPE', 'TYPE', 'CATEGORY', 'ACCOUNT_ID')
+
+_DT_FORMATS = ('%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d')
+
+
+def _parse_datetime(value):
+    """把 DB 返回的日期字符串转为 Unix 时间戳 float，与其他 crawler 保持一致。"""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = str(value).strip()
+    for fmt in _DT_FORMATS:
+        try:
+            return time.mktime(datetime.strptime(s, fmt).timetuple())
+        except ValueError:
+            continue
+    return None
+_DEFAULT_CTP_FIELDS = ('ID', 'FILENAME', 'FILE_SIZE', 'UPDATE_DATE', 'MIME_TYPE', 'TYPE', 'CATEGORY', 'ACCOUNT_ID')
 _DEFAULT_CTP_ID_FIELD = 'ID'
 _CTP_FETCH_SIZE = 1000
 _CTP_PAGE_SIZE = 100
 
 # 常见 Seeyon 字段名到 node 属性的映射（大写匹配）
+# 不同版本致远 OA 的字段名可能带下划线也可能不带，两种都收录
 _FIELD_ALIAS = {
-    'FILE_NAME':   'file_name',
+    'FILENAME':    'file_name',
     'FILE_SIZE':   'size',
     'UPDATE_DATE': 'last_write_time',
+    'CREATE_DATE': 'last_write_time',
     'MIME_TYPE':   'mime_type',
     'TYPE':        'ctp_type',
     'CATEGORY':    'category',
@@ -89,6 +109,8 @@ def _row_to_node(fields, row, ctp_id_field):
                     value = int(value)
                 except (ValueError, TypeError):
                     value = 0
+            elif alias == 'last_write_time':
+                value = _parse_datetime(value)
             node[alias] = value
     file_name = node.get('file_name') or str(ctp_file_id)
     node['file_name'] = file_name
@@ -142,6 +164,7 @@ class SeeyonAuth:
         self.callback_url = callback_url
         self.token = None
         self.last_refresh_time = 0
+        self.last_fail_time = 0
         self.token_expires_in = 15 * 60
         self.lock = Lock()
 
@@ -154,10 +177,16 @@ class SeeyonAuth:
             current_time = time.time()
             if self.token and (current_time - self.last_refresh_time) < (self.token_expires_in - 60):
                 return self.token
+            if not self.token and self.last_fail_time and (current_time - self.last_fail_time) < 30:
+                self.logger.warning('token refresh skipped: last failed %.1fs ago', current_time - self.last_fail_time)
+                return None
+            login_name_used = self.login_name or self.userName
+            self.logger.info('requesting token: base_url=%s userName=%s loginName=%s login_name_cfg=%s',
+                             self.base_url, self.userName, login_name_used, self.login_name)
             try:
                 resp = requests.post(
                     f'{self.base_url}/seeyon/rest/token/',
-                    json={'userName': self.userName, 'password': self.password, 'loginName': self.login_name or self.userName},
+                    json={'userName': self.userName, 'password': self.password, 'loginName': login_name_used},
                     headers={'Content-Type': 'application/json'},
                     verify=False,
                     timeout=30
@@ -166,14 +195,19 @@ class SeeyonAuth:
                     resp_data = resp.json()
                     self.token = resp_data.get('id')
                     if not resp_data.get('bindingUser'):
-                        self.logger.error('token response missing bindingUser: loginName=%s may be invalid', self.login_name)
+                        self.logger.error('token response missing bindingUser: loginName=%s may be invalid', login_name_used)
                     self.last_refresh_time = current_time
+                    self.last_fail_time = 0
+                    self.logger.info('token obtained: loginName=%s bindingUser=%s', login_name_used, resp_data.get('bindingUser'))
                     return self.token
                 else:
-                    self.logger.error('token request failed: %s', resp.status_code)
+                    self.logger.error('token request failed: status=%s loginName=%s resp_body=%s',
+                                      resp.status_code, login_name_used, resp.text[:500])
+                    self.last_fail_time = current_time
                     return None
             except Exception as e:
                 self.logger.error('token request error: %s', e)
+                self.last_fail_time = current_time
                 return None
 
 
@@ -188,7 +222,7 @@ class SeeyonClient(Client):
         self.login_name = login_name
         self.callback_url = callback_url
         self.session = requests.Session()
-        retries = Retry(total=3, backoff_factor=3, status_forcelist=[500, 502, 503, 504])
+        retries = Retry(total=3, backoff_factor=3, status_forcelist=[502, 503, 504])
         adapter = HTTPAdapter(max_retries=retries)
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
@@ -223,12 +257,14 @@ class SeeyonClient(Client):
 
     def get_file(self, node):
         ctp_file_id = node.get('ctp_file_id')
+        file_name = node.get('file_name', '')
         url = f'{self.base_url}/seeyon/rest/attachment/file/{ctp_file_id}'
         for attempt in range(2):
+            current_time = time.time()
             token = node.get('token') or self.token or self.auth.get_token()
-            params = {'fileName': node.get('file_name', ''), 'token': token}
-            self.logger.debug('[DEBUG-SEEYON][get_file] 下载请求: ctp_file_id=%s, file_name=%s, url=%s, attempt=%s',
-                              ctp_file_id, node.get('file_name'), url, attempt)
+            if not token:
+                self.logger.error('no token available: ctp_file_id=%s attempt=%d', ctp_file_id, attempt)
+            params = {'fileName': file_name, 'token': token}
             f = SpooledTemporaryFile(max_size=16 * 1024 * 1024)
             resp = self.session.get(
                 url,
@@ -237,21 +273,22 @@ class SeeyonClient(Client):
                 verify=False,
                 timeout=(10, 300)
             )
-            self.logger.debug('[DEBUG-SEEYON][get_file] 下载响应: status=%s, headers=%s',
-                              resp.status_code, dict(resp.headers))
             if resp.status_code == 200:
+                size = 0
                 for chunk in resp.iter_content(chunk_size=8192):
                     f.write(chunk)
+                    size += len(chunk)
                 f.seek(0)
-                self.logger.debug('[DEBUG-SEEYON][get_file] 下载成功: ctp_file_id=%s, file_name=%s', ctp_file_id, node.get('file_name'))
                 return f
             f.close()
             if resp.status_code == 401 and attempt == 0:
+                token_age = current_time - self.auth.last_refresh_time if self.auth.last_refresh_time else -1
+                self.logger.warning('token 401, retrying: ctp_file_id=%s token_age=%.1fs resp_body=%s',
+                                    ctp_file_id, token_age, resp.text[:300])
                 self.auth.token = None
                 self.auth.last_refresh_time = 0
-                self.logger.warning('[DEBUG-SEEYON][get_file] 401 token 过期, 刷新后重试: ctp_file_id=%s', ctp_file_id)
                 continue
-            self.logger.error('[DEBUG-SEEYON][get_file] 下载失败: ctp_file_id=%s, status=%s, resp_body=%s',
+            self.logger.error('file download failed: ctp_file_id=%s status=%s resp_body=%s',
                               ctp_file_id, resp.status_code, resp.text[:500])
             raise Exception(f'file download failed: {resp.status_code}')
         raise Exception(f'file download failed after retry: ctp_file_id={ctp_file_id}')
@@ -302,11 +339,6 @@ class SeeyonIterator(Iterator):
         self._ctp_fields = _DEFAULT_CTP_FIELDS
         self._ctp_id_field = ctp_id_field or _DEFAULT_CTP_ID_FIELD
 
-        # [DEBUG-SEEYON] 打印 web 侧传入的原始参数
-        self.logger.info('[DEBUG-SEEYON][SeeyonIterator] 收到参数: schema_name=%s, mysql_table=%s, ctp_id_field=%s',
-                         schema_name, mysql_table, ctp_id_field)
-        self.logger.info('[DEBUG-SEEYON][SeeyonIterator] 收到 resources: %s', resources)
-
         # 从 resources 树中递归找到 table 节点，提取 schema/table/columns
         if resources:
             table_node = _find_table_node(resources)
@@ -323,8 +355,6 @@ class SeeyonIterator(Iterator):
         dbp_auth = {k[3:]: v for k, v in auth.items() if k.startswith('db_')}
         if 'dbtype' in dbp_auth:
             dbp_auth['dbtype'] = dbp_auth['dbtype'].lower()
-        safe_dbp_auth = {k: ('***' if k == 'password' else v) for k, v in dbp_auth.items()}
-        self.logger.info('[DEBUG-SEEYON][SeeyonIterator] dbp_auth: %s', safe_dbp_auth)
         self._schema = schema_name
         self._table = mysql_table
         self._where = auth.get('ctp_where', None)
@@ -333,8 +363,13 @@ class SeeyonIterator(Iterator):
         self._db_exhausted = self._db_client is None
         rate = int(auth.get('rate_limit') or _DEFAULT_RATE_LIMIT)
         self._rate_limiter = _RateLimiter(rate)
-        self.logger.info('[DEBUG-SEEYON] SeeyonIterator init: schema=%s, table=%s, fields=%s, id_field=%s, rate_limit=%s/min',
-                         self._schema, self._table, self._ctp_fields, self._ctp_id_field, rate or '不限速')
+        self.logger.info(
+            'SeeyonIterator init: base_url=%s userName=%s login_name=%s '
+            'schema=%s table=%s id_field=%s fields=%s where=%s db_enabled=%s',
+            auth.get('base_url'), auth.get('userName'), auth.get('login_name'),
+            self._schema, self._table, self._ctp_id_field,
+            self._ctp_fields, self._where, self._db_client is not None
+        )
 
     def __iter__(self):
         return self
@@ -352,9 +387,6 @@ class SeeyonIterator(Iterator):
                 else:
                     return self.node, partial(self.get_file, self.node)
             elif not self._db_exhausted:
-                # [DEBUG-SEEYON] DBProxy 查询参数日志
-                self.logger.info('[DEBUG-SEEYON][SeeyonIterator] DBProxy query: schema=%s, table=%s, fields=%s, start=%s, page_size=%s, where=%s',
-                                 self._schema, self._table, self._ctp_fields, self._start, _CTP_PAGE_SIZE, self._where)
                 self._rate_limiter.wait()
                 try:
                     data = self._db_client.query(
@@ -367,14 +399,14 @@ class SeeyonIterator(Iterator):
                         where=self._where
                     )
                 except Exception as e:
-                    self.logger.error('[DEBUG-SEEYON][SeeyonIterator] DBProxy query 失败，终止迭代: %s', e)
+                    self.logger.error('DBProxy query failed: schema=%s table=%s offset=%d error=%s',
+                                      self._schema, self._table, self._start, e)
                     self._db_exhausted = True
                     raise StopIteration
                 rows = data.rows
-                self.logger.info('[DEBUG-SEEYON][SeeyonIterator] DBProxy 返回行数=%s, start=%s', len(rows), self._start)
-                if rows:
-                    self.logger.info('[DEBUG-SEEYON][SeeyonIterator] 第一行样本: %s', rows[0])
                 self._start += _CTP_PAGE_SIZE
+                self.logger.info('DBProxy rows: fetched=%d offset_now=%d exhausted=%s',
+                                 len(rows) if rows else 0, self._start, not rows or len(rows) < _CTP_PAGE_SIZE)
                 if rows:
                     nodes = [_row_to_node(self._ctp_fields, row, self._ctp_id_field) for row in rows]
                     nodes.reverse()
@@ -416,13 +448,12 @@ class SeeyonIterator(Iterator):
         self.stack.extend(nodes)
 
     def get_file(self, node):
-        # [DEBUG-SEEYON] 扫描任务内部调用 get_file 时的 node 内容
-        self.logger.info('[DEBUG-SEEYON][SeeyonIterator.get_file] ctp_file_id=%s, file_name=%s',
-                         node.get('ctp_file_id'), node.get('file_name'))
         f = self.client.get_file(node)
         md5 = hashlib.md5()
+        size = 0
         for chunk in iter(lambda: f.read(8192), b''):
             md5.update(chunk)
+            size += len(chunk)
         node['md5'] = md5.hexdigest()
         f.seek(0)
         return f

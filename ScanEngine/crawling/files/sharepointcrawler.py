@@ -481,6 +481,7 @@ class SharePoint(Client):
             raise ValueError('sepPath or name is empty')
         target_url = f'{self._base_split}/{sep_path.strip("/")}/{file_name}'
         session = self._make_ntlm_session()
+        f.seek(0)
         resp = session.put(target_url, data=f.read(), verify=self.verify_ssl, timeout=60)
         resp.raise_for_status()
 
@@ -501,9 +502,6 @@ class SharePoint(Client):
         session = self._make_ntlm_session()
         resp = session.delete(file_url, verify=self.verify_ssl, timeout=60)
         resp.raise_for_status()
-
-
-        pass
 
     def __bool__(self):
         return True

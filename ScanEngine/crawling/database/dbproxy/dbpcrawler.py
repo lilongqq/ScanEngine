@@ -822,8 +822,6 @@ class DBProxyIterator(Iterator):
     def __init__(self, auth, resources):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.auth = auth
-        # [DEBUG-SEEYON] 查看 DBProxyIterator 收到的 auth 字段
-        self.logger.info('[DEBUG-SEEYON][DBProxyIterator] auth keys=%s, auth=%s', list(auth.keys()), auth)
         self.client = DBProxyBatch(**self.auth)
         self.stack = list()
         self.stack.append(resources)

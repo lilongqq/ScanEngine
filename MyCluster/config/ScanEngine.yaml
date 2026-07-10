@@ -152,6 +152,8 @@ kafka:
     reconnect_backoff_ms: 1000
     max_block_ms: 600000
     request_timeout_ms: 600000
+    acks: all
+    delivery_timeout_ms: 630000
   consumer:
     bootstrap_servers: kafka:9092
     group_id: ScanEngine

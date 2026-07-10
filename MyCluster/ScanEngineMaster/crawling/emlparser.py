@@ -23,5 +23,5 @@ class Parser(object):
                         headers = self.parse.parsebytes(data, headersonly=True)
                         for k, v in headers.items():
                             node[k.lower()] = v
-                    except:
+                    except Exception:
                         self.logger.error(traceback.format_exc())
